@@ -35,6 +35,16 @@ struct ContentView: View {
                     .buttonStyle(.bordered)
                 }
 
+                Button {
+                    selectedSymptom = Symptom.allCases.randomElement()
+                } label: {
+                    Label("Random", systemImage: "dice")
+                        .font(.title3)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(.purple)
+
                 if !healthKit.isAvailable {
                     Text("Health data isn't available on this device.")
                         .font(.footnote)
