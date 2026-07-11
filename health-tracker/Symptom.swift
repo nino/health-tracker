@@ -37,6 +37,24 @@ enum Symptom: String, CaseIterable, Identifiable {
         }
     }
 
+    // Random pick that slightly favors symptoms logged least recently, so
+    // occasional "Random" logging spreads coverage across all symptoms.
+    // Never-logged symptoms count as oldest. Weights step down by 0.5 from
+    // oldest to newest, so the least recent is ~3.5x as likely as the most
+    // recent — a nudge, not a guarantee.
+    static func weightedRandomByRecency(lastLogged: [Symptom: Date]) -> Symptom {
+        let oldestFirst = allCases.sorted {
+            (lastLogged[$0] ?? .distantPast) < (lastLogged[$1] ?? .distantPast)
+        }
+        let weights = oldestFirst.indices.map { 1.0 + 0.5 * Double(oldestFirst.count - 1 - $0) }
+        var remaining = Double.random(in: 0..<weights.reduce(0, +))
+        for (symptom, weight) in zip(oldestFirst, weights) {
+            remaining -= weight
+            if remaining < 0 { return symptom }
+        }
+        return oldestFirst.last!
+    }
+
     var categoryType: HKCategoryType {
         switch self {
         case .headache: HKCategoryType(.headache)

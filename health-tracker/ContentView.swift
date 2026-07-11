@@ -36,7 +36,10 @@ struct ContentView: View {
                 }
 
                 Button {
-                    selectedSymptom = Symptom.allCases.randomElement()
+                    Task {
+                        let lastLogged = await healthKit.lastLoggedDates()
+                        selectedSymptom = Symptom.weightedRandomByRecency(lastLogged: lastLogged)
+                    }
                 } label: {
                     Label("Random", systemImage: "dice")
                         .font(.title3)

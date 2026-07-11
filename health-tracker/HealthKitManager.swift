@@ -14,9 +14,27 @@ final class HealthKitManager {
 
     func requestAuthorization() async throws {
         guard isAvailable else { return }
-        var types: Set<HKSampleType> = Set(Symptom.allCases.map(\.categoryType))
-        types.insert(HKSampleType.stateOfMindType())
-        try await store.requestAuthorization(toShare: types, read: [])
+        var shareTypes: Set<HKSampleType> = Set(Symptom.allCases.map(\.categoryType))
+        shareTypes.insert(HKSampleType.stateOfMindType())
+        let readTypes: Set<HKObjectType> = Set(Symptom.allCases.map(\.categoryType))
+        try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
+    }
+
+    // Most recent sample date per symptom. Missing entries mean never logged —
+    // or read access denied, which HealthKit deliberately reports the same way.
+    func lastLoggedDates() async -> [Symptom: Date] {
+        var dates: [Symptom: Date] = [:]
+        for symptom in Symptom.allCases {
+            let descriptor = HKSampleQueryDescriptor(
+                predicates: [.categorySample(type: symptom.categoryType)],
+                sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
+                limit: 1
+            )
+            if let sample = try? await descriptor.result(for: store).first {
+                dates[symptom] = sample.endDate
+            }
+        }
+        return dates
     }
 
     // Maps a 1–10 mood rating onto State of Mind valence (-1...1), 5.5 being neutral.
