@@ -10,24 +10,30 @@ struct SymptomLogView: View {
     let healthKit: HealthKitManager
 
     @Environment(\.dismiss) private var dismiss
-    @State private var severity: Severity = .present
+    @State private var selectedValue: Int
     @State private var date = Date()
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    init(symptom: Symptom, healthKit: HealthKitManager) {
+        self.symptom = symptom
+        self.healthKit = healthKit
+        _selectedValue = State(initialValue: symptom.valueKind.defaultValue)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Severity") {
-                    ForEach(Severity.allCases) { option in
+                Section(symptom.valueKind.sectionTitle) {
+                    ForEach(symptom.valueKind.options) { option in
                         Button {
-                            severity = option
+                            selectedValue = option.value
                         } label: {
                             HStack {
                                 Text(option.label)
                                     .foregroundStyle(.primary)
                                 Spacer()
-                                if severity == option {
+                                if selectedValue == option.value {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(.tint)
                                 }
@@ -92,7 +98,7 @@ struct SymptomLogView: View {
         isSaving = true
         Task {
             do {
-                try await healthKit.save(symptom, severity: severity, date: date)
+                try await healthKit.save(symptom, value: selectedValue, date: date)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -103,5 +109,5 @@ struct SymptomLogView: View {
 }
 
 #Preview {
-    SymptomLogView(symptom: .headache, healthKit: HealthKitManager())
+    SymptomLogView(symptom: Symptom.all[0], healthKit: HealthKitManager())
 }

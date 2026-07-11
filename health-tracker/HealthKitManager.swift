@@ -12,19 +12,21 @@ final class HealthKitManager {
         HKHealthStore.isHealthDataAvailable()
     }
 
+    // Requests access for every supported symptom type up front, so enabling
+    // a symptom later in settings doesn't trigger another permission prompt.
     func requestAuthorization() async throws {
         guard isAvailable else { return }
-        var shareTypes: Set<HKSampleType> = Set(Symptom.allCases.map(\.categoryType))
+        var shareTypes: Set<HKSampleType> = Set(Symptom.all.map(\.categoryType))
         shareTypes.insert(HKSampleType.stateOfMindType())
-        let readTypes: Set<HKObjectType> = Set(Symptom.allCases.map(\.categoryType))
+        let readTypes: Set<HKObjectType> = Set(Symptom.all.map(\.categoryType))
         try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
     }
 
     // Most recent sample date per symptom. Missing entries mean never logged —
     // or read access denied, which HealthKit deliberately reports the same way.
-    func lastLoggedDates() async -> [Symptom: Date] {
+    func lastLoggedDates(for symptoms: [Symptom]) async -> [Symptom: Date] {
         var dates: [Symptom: Date] = [:]
-        for symptom in Symptom.allCases {
+        for symptom in symptoms {
             let descriptor = HKSampleQueryDescriptor(
                 predicates: [.categorySample(type: symptom.categoryType)],
                 sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
@@ -51,11 +53,11 @@ final class HealthKitManager {
         try await store.save(sample)
     }
 
-    func save(_ symptom: Symptom, severity: Severity, date: Date) async throws {
+    func save(_ symptom: Symptom, value: Int, date: Date) async throws {
         try await requestAuthorization()
         let sample = HKCategorySample(
             type: symptom.categoryType,
-            value: severity.hkValue.rawValue,
+            value: value,
             start: date,
             end: date
         )
