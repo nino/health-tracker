@@ -16,7 +16,6 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var showingInfo = false
     @State private var lastLogged: [Symptom: Date] = [:]
-    @State private var lastMood: Date?
     @State private var hasLoadedDates = false
     @AppStorage("enabledSymptomIDs") private var enabledIDsStorage = Symptom.defaultEnabledStorage
 
@@ -31,15 +30,12 @@ struct ContentView: View {
                     VStack(spacing: 12) {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             ForEach(MetricKind.allCases) { metric in
-                                // Mood recency comes from HealthKit (it also sees
-                                // entries made outside this app); stress/anxiety
-                                // exist only in the local store.
                                 logButton(
                                     metric.name,
                                     icon: metric.icon,
-                                    lastDate: metric == .mood ? lastMood : store.lastDate(for: metric),
+                                    lastDate: store.lastDate(for: metric),
                                     now: context.date,
-                                    pending: metric == .mood && !hasLoadedDates
+                                    pending: false
                                 ) {
                                     selectedMetric = metric
                                 }
@@ -192,11 +188,9 @@ struct ContentView: View {
     private func reload() async {
         // Only the enabled symptoms ever show on screen, and enabling more in
         // settings re-triggers this via the sheet's onDismiss — so don't hit
-        // healthd for all 39 types.
-        async let mood = healthKit.lastMoodDate()
-        async let dates = healthKit.lastLoggedDates(for: enabledSymptoms)
-        lastMood = await mood
-        lastLogged = await dates
+        // healthd for all 39 types. Mood/stress/anxiety recency comes from the
+        // local MetricStore, not HealthKit, to keep cold launch cheap.
+        lastLogged = await healthKit.lastLoggedDates(for: enabledSymptoms)
         hasLoadedDates = true
     }
 }

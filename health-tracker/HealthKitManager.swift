@@ -85,21 +85,6 @@ final class HealthKitManager {
         return dates
     }
 
-    @concurrent
-    nonisolated func lastMoodDate() async -> Date? {
-        let descriptor = HKSampleQueryDescriptor(
-            predicates: [.stateOfMind()],
-            sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
-            limit: 1
-        )
-        var date: Date?
-        let time = await ContinuousClock().measure {
-            date = (try? await descriptor.result(for: store).first)?.endDate
-        }
-        Perf.note("lastMoodDate done after \(time.ms)ms")
-        return date
-    }
-
     // Maps a 1–10 mood rating onto State of Mind valence (-1...1), 5.5 being neutral.
     func saveMood(rating: Int, date: Date) async throws {
         try await requestAuthorization()

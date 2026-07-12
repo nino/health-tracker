@@ -18,7 +18,7 @@ struct InfoView: View {
                 }
 
                 Section("Last Logged") {
-                    Text("Each button shows how long ago you last logged that symptom, based on the data in Apple Health. The color shows how stale it is:")
+                    Text("Each button shows how long ago you last logged it — symptoms come from the data in Apple Health; mood, stress, and anxiety from the app's own log. The color shows how stale it is:")
                     legendRow(.secondary, "Less than 2 hours ago")
                     legendRow(.green, "2–4 hours ago")
                     legendRow(.yellow, "4–8 hours ago")
