@@ -37,6 +37,13 @@ struct InfoView: View {
                     Text("Everything lives in Apple Health — this app stores nothing else and sends nothing anywhere. You can view, edit, or delete entries in the Health app.")
                     Text("If you deny the app read access, buttons show \"never\" since Apple Health reports denied access the same as no data. Logging still works with write access alone.")
                 }
+
+                Section("Source Code") {
+                    Text("This app is open source — it exists because entering data into Apple Health directly is more convoluted than it should be.")
+                    Link(destination: URL(string: "https://github.com/nino/health-tracker")!) {
+                        Label("github.com/nino/health-tracker", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+                }
             }
             .navigationTitle("About")
             #if !os(macOS)
