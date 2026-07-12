@@ -10,6 +10,7 @@ A small SwiftUI app for logging symptoms and mood into Apple Health as fast as p
 - **Mood logging** — a 1–10 slider saved via the State of Mind API (`HKStateOfMind`, momentary emotion), mapped linearly to valence −1…+1 with 5.5 as neutral.
 - **Random button** — picks a symptom to log, weighted toward the ones logged least recently. It queries HealthKit for each enabled symptom's most recent sample; weights run linearly from 1x (newest) to 3x (oldest), with never-logged symptoms counting as oldest. A nudge toward even coverage, not a guarantee.
 - **Backdating** — every log sheet has an editable date/time, so you can enter something you forgot earlier.
+- **Last-logged timestamps** — each button shows when that symptom (or mood) was last logged, color-coded by staleness: neutral under 2 hours, green 2–4h, yellow 4–8h, orange 8–24h, red beyond a day or never logged.
 
 ## Requirements
 

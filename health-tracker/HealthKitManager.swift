@@ -18,7 +18,8 @@ final class HealthKitManager {
         guard isAvailable else { return }
         var shareTypes: Set<HKSampleType> = Set(Symptom.all.map(\.categoryType))
         shareTypes.insert(HKSampleType.stateOfMindType())
-        let readTypes: Set<HKObjectType> = Set(Symptom.all.map(\.categoryType))
+        var readTypes: Set<HKObjectType> = Set(Symptom.all.map(\.categoryType))
+        readTypes.insert(HKSampleType.stateOfMindType())
         try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
     }
 
@@ -37,6 +38,15 @@ final class HealthKitManager {
             }
         }
         return dates
+    }
+
+    func lastMoodDate() async -> Date? {
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.stateOfMind()],
+            sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
+            limit: 1
+        )
+        return (try? await descriptor.result(for: store).first)?.endDate
     }
 
     // Maps a 1–10 mood rating onto State of Mind valence (-1...1), 5.5 being neutral.
