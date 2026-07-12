@@ -112,7 +112,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingInfo) {
             InfoView()
         }
-        .task {
+        // Utility priority propagates through XPC to healthd, keeping the
+        // launch-time HealthKit work from starving UI rendering.
+        .task(priority: .utility) {
             Perf.note("first task started")
             let clock = ContinuousClock()
             let authState = Perf.signposter.beginInterval("authorization")

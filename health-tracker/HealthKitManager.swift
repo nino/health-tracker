@@ -14,12 +14,20 @@ final class HealthKitManager {
 
     // Requests access for every supported symptom type up front, so enabling
     // a symptom later in settings doesn't trigger another permission prompt.
+    // Gated on statusForAuthorizationRequest: an actual authorization request
+    // makes healthd process all 40 types, which is expensive enough to jank
+    // the UI — only pay that when the request would do something.
     func requestAuthorization() async throws {
         guard isAvailable else { return }
         var shareTypes: Set<HKSampleType> = Set(Symptom.all.map(\.categoryType))
         shareTypes.insert(HKSampleType.stateOfMindType())
         var readTypes: Set<HKObjectType> = Set(Symptom.all.map(\.categoryType))
         readTypes.insert(HKSampleType.stateOfMindType())
+        let status = try await store.statusForAuthorizationRequest(toShare: shareTypes, read: readTypes)
+        guard status == .shouldRequest else {
+            Perf.note("authorization request skipped (status \(status.rawValue))")
+            return
+        }
         try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
     }
 
@@ -84,7 +92,12 @@ final class HealthKitManager {
             sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
             limit: 1
         )
-        return (try? await descriptor.result(for: store).first)?.endDate
+        var date: Date?
+        let time = await ContinuousClock().measure {
+            date = (try? await descriptor.result(for: store).first)?.endDate
+        }
+        Perf.note("lastMoodDate done after \(time.ms)ms")
+        return date
     }
 
     // Maps a 1–10 mood rating onto State of Mind valence (-1...1), 5.5 being neutral.
