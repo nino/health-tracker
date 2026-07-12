@@ -5,14 +5,14 @@
 
 import HealthKit
 
-struct SymptomOption: Identifiable, Hashable {
+nonisolated struct SymptomOption: Identifiable, Hashable {
     let label: String
     let value: Int
 
     var id: Int { value }
 }
 
-struct Symptom: Identifiable, Hashable {
+nonisolated struct Symptom: Identifiable, Hashable {
     // Which HKCategoryValue enum the type records; see HKTypeIdentifiers.h.
     enum ValueKind: Hashable {
         case severity

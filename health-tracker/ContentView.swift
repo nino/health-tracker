@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showingInfo = false
     @State private var lastLogged: [Symptom: Date] = [:]
     @State private var lastMood: Date?
+    @State private var hasLoadedDates = false
     @AppStorage("enabledSymptomIDs") private var enabledIDsStorage = Symptom.defaultEnabledStorage
 
     private var enabledSymptoms: [Symptom] {
@@ -118,9 +119,14 @@ struct ContentView: View {
             VStack(spacing: 2) {
                 Label(title, systemImage: icon)
                     .multilineTextAlignment(.center)
-                Text(lastLoggedText(lastDate, now: now))
-                    .font(.caption)
-                    .foregroundStyle(stalenessColor(lastDate, now: now))
+                if lastDate == nil && !hasLoadedDates {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Text(lastLoggedText(lastDate, now: now))
+                        .font(.caption)
+                        .foregroundStyle(stalenessColor(lastDate, now: now))
+                }
             }
             .frame(maxWidth: .infinity, minHeight: 56)
         }
@@ -153,8 +159,11 @@ struct ContentView: View {
     }
 
     private func reload() async {
-        lastMood = await healthKit.lastMoodDate()
-        lastLogged = await healthKit.lastLoggedDates(for: Symptom.all)
+        async let mood = healthKit.lastMoodDate()
+        async let dates = healthKit.lastLoggedDates(for: Symptom.all)
+        lastMood = await mood
+        lastLogged = await dates
+        hasLoadedDates = true
     }
 }
 

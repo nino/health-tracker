@@ -25,19 +25,30 @@ final class HealthKitManager {
 
     // Most recent sample date per symptom. Missing entries mean never logged —
     // or read access denied, which HealthKit deliberately reports the same way.
+    // Queries run in parallel off the main actor: doing them one at a time on
+    // the main actor made cold launch visibly laggy.
     func lastLoggedDates(for symptoms: [Symptom]) async -> [Symptom: Date] {
-        var dates: [Symptom: Date] = [:]
-        for symptom in symptoms {
-            let descriptor = HKSampleQueryDescriptor(
-                predicates: [.categorySample(type: symptom.categoryType)],
-                sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
-                limit: 1
-            )
-            if let sample = try? await descriptor.result(for: store).first {
-                dates[symptom] = sample.endDate
+        await withTaskGroup(of: (Symptom, Date?).self) { group in
+            for symptom in symptoms {
+                let type = symptom.categoryType
+                group.addTask { [store] in
+                    let descriptor = HKSampleQueryDescriptor(
+                        predicates: [.categorySample(type: type)],
+                        sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
+                        limit: 1
+                    )
+                    let sample = try? await descriptor.result(for: store).first
+                    return (symptom, sample?.endDate)
+                }
             }
+            var dates: [Symptom: Date] = [:]
+            for await (symptom, date) in group {
+                if let date {
+                    dates[symptom] = date
+                }
+            }
+            return dates
         }
-        return dates
     }
 
     func lastMoodDate() async -> Date? {
