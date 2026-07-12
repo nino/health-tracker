@@ -152,6 +152,33 @@ final class MetricStore {
         try persist()
     }
 
+    // One-time import of mood entries that predate this store (see ContentView).
+    // Skips samples within 2s of an existing mood entry so dual-written entries
+    // don't duplicate. Imported entries use the sample date as loggedAt — the
+    // original logging time isn't recoverable from HealthKit.
+    func importMood(_ samples: [(date: Date, rating: Int)]) throws -> Int {
+        let existingDates = entries.filter { $0.kind == .mood }.map(\.date)
+        var added = 0
+        for sample in samples {
+            guard !existingDates.contains(where: { abs($0.timeIntervalSince(sample.date)) < 2 }) else {
+                continue
+            }
+            entries.append(MetricEntry(
+                id: UUID(),
+                kind: .mood,
+                rating: sample.rating,
+                date: sample.date,
+                loggedAt: sample.date
+            ))
+            added += 1
+        }
+        if added > 0 {
+            entries.sort { $0.date < $1.date }
+            try persist()
+        }
+        return added
+    }
+
     func lastDate(for kind: MetricKind) -> Date? {
         entries.lazy.filter { $0.kind == kind }.map(\.date).max()
     }

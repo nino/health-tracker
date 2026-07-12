@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var lastLogged: [Symptom: Date] = [:]
     @State private var hasLoadedDates = false
     @AppStorage("enabledSymptomIDs") private var enabledIDsStorage = Symptom.defaultEnabledStorage
+    @AppStorage("didImportHealthKitMood") private var didImportHealthKitMood = false
 
     private var enabledSymptoms: [Symptom] {
         Symptom.enabled(from: enabledIDsStorage)
@@ -134,6 +135,7 @@ struct ContentView: View {
             }
             Perf.signposter.endInterval("reload", reloadState)
             Perf.note("reload done after \(reloadTime.ms)ms")
+            await importLegacyMood()
         }
         .onAppear {
             Perf.note("ContentView appeared")
@@ -192,6 +194,21 @@ struct ContentView: View {
 
     private func refresh() {
         Task { await reload() }
+    }
+
+    // One-time pull of State of Mind entries that predate the local store, so
+    // old moods show in history/recency/export. Runs after the launch reload at
+    // utility priority; the flag keeps it off the steady-state launch path.
+    // Caveat: if read access is denied, this imports nothing and doesn't retry.
+    private func importLegacyMood() async {
+        guard !didImportHealthKitMood else { return }
+        let samples = await healthKit.allMoodSamples()
+        let rated = samples.map { sample in
+            (date: sample.date, rating: min(10, max(1, Int((sample.valence * 4.5 + 5.5).rounded()))))
+        }
+        let added = (try? store.importMood(rated)) ?? 0
+        didImportHealthKitMood = true
+        Perf.note("imported \(added) mood entries from HealthKit")
     }
 
     private func reload() async {

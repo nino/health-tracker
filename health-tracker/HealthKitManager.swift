@@ -85,6 +85,20 @@ final class HealthKitManager {
         return dates
     }
 
+    // All State of Mind samples, oldest first, for the one-time import of mood
+    // entries that predate the local MetricStore. Returns [] if read access is
+    // denied (indistinguishable from no data).
+    @concurrent
+    nonisolated func allMoodSamples() async -> [(date: Date, valence: Double)] {
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.stateOfMind()],
+            sortDescriptors: [SortDescriptor(\.endDate, order: .forward)],
+            limit: nil
+        )
+        guard let samples = try? await descriptor.result(for: store) else { return [] }
+        return samples.map { ($0.endDate, $0.valence) }
+    }
+
     // Maps a 1–10 mood rating onto State of Mind valence (-1...1), 5.5 being neutral.
     func saveMood(rating: Int, date: Date) async throws {
         try await requestAuthorization()
