@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var selectedMetric: MetricKind?
     @State private var showingSettings = false
     @State private var showingInfo = false
+    @State private var showingHistory = false
     @State private var lastLogged: [Symptom: Date] = [:]
     @State private var hasLoadedDates = false
     @AppStorage("enabledSymptomIDs") private var enabledIDsStorage = Symptom.defaultEnabledStorage
@@ -84,6 +85,11 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItemGroup {
                     Button {
+                        showingHistory = true
+                    } label: {
+                        Image(systemName: "chart.xyaxis.line")
+                    }
+                    Button {
                         showingInfo = true
                     } label: {
                         Image(systemName: "info.circle")
@@ -107,6 +113,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingInfo) {
             InfoView()
+        }
+        .sheet(isPresented: $showingHistory) {
+            MetricHistoryView(store: store)
         }
         // Utility priority propagates through XPC to healthd, keeping the
         // launch-time HealthKit work from starving UI rendering.
