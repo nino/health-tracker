@@ -116,7 +116,7 @@ struct ContentView: View {
             InfoView()
         }
         .sheet(isPresented: $showingHistory) {
-            MetricHistoryView(store: store)
+            MetricHistoryView(store: store, symptoms: enabledSymptoms, healthKit: healthKit)
         }
         // Utility priority propagates through XPC to healthd, keeping the
         // launch-time HealthKit work from starving UI rendering.

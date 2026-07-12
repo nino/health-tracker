@@ -15,7 +15,7 @@ struct InfoView: View {
                     Text("Tap a symptom to log it. Pick a severity (or presence, for symptoms Apple Health tracks that way), adjust the date and time if you're logging something from earlier, and hit Save. Everything is written straight to Apple Health.")
                     Text("Mood works the same way, using a 1–10 slider from very negative to very positive. It's saved as a State of Mind entry (a momentary emotion) in Apple Health, and also kept in the app.")
                     Text("Stress and anxiety use a 0–10 slider. Apple Health has no data type for them, so they live in the app only.")
-                    Text("The chart icon in the toolbar shows your mood, stress, and anxiety history over time — tap or drag on a chart to inspect an entry.")
+                    Text("The chart icon in the toolbar shows the history of your moods, stress, anxiety, and enabled symptoms over time — tap or drag on a chart to inspect an entry.")
                 }
 
                 Section("Last Logged") {

@@ -85,6 +85,19 @@ final class HealthKitManager {
         return dates
     }
 
+    // Full sample history for one symptom, oldest first. Used by the history
+    // charts, which fetch on demand when the sheet opens — not at launch.
+    @concurrent
+    nonisolated func samples(for symptom: Symptom) async -> [(date: Date, value: Int)] {
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: symptom.categoryType)],
+            sortDescriptors: [SortDescriptor(\.endDate, order: .forward)],
+            limit: nil
+        )
+        guard let samples = try? await descriptor.result(for: store) else { return [] }
+        return samples.map { ($0.endDate, $0.value) }
+    }
+
     // All State of Mind samples, oldest first, for the one-time import of mood
     // entries that predate the local MetricStore. Returns [] if read access is
     // denied (indistinguishable from no data).

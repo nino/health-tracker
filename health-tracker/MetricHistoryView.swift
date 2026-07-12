@@ -8,9 +8,12 @@ import Charts
 
 struct MetricHistoryView: View {
     let store: MetricStore
+    let symptoms: [Symptom]
+    let healthKit: HealthKitManager
 
     @Environment(\.dismiss) private var dismiss
     @State private var range: HistoryRange = .month
+    @State private var symptomPoints: [Symptom: [SymptomPoint]] = [:]
 
     enum HistoryRange: String, CaseIterable, Identifiable {
         case week = "Week"
@@ -46,6 +49,17 @@ struct MetricHistoryView: View {
                         MetricChart(metric: metric, entries: entries(for: metric))
                     }
                 }
+
+                ForEach(symptoms) { symptom in
+                    Section(symptom.name) {
+                        if let points = symptomPoints[symptom] {
+                            SymptomChart(symptom: symptom, points: filtered(points))
+                        } else {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
             }
             .navigationTitle("History")
             #if !os(macOS)
@@ -54,6 +68,12 @@ struct MetricHistoryView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                }
+            }
+            .task {
+                for symptom in symptoms {
+                    let samples = await healthKit.samples(for: symptom)
+                    symptomPoints[symptom] = samples.map { SymptomPoint(date: $0.date, value: $0.value) }
                 }
             }
         }
@@ -68,6 +88,16 @@ struct MetricHistoryView: View {
             .filter { entry in range.cutoff.map { entry.date >= $0 } ?? true }
             .sorted { $0.date < $1.date }
     }
+
+    private func filtered(_ points: [SymptomPoint]) -> [SymptomPoint] {
+        points.filter { point in range.cutoff.map { point.date >= $0 } ?? true }
+    }
+}
+
+private struct SymptomPoint: Identifiable {
+    let id = UUID()
+    let date: Date
+    let value: Int
 }
 
 private struct MetricChart: View {
@@ -120,16 +150,10 @@ private struct MetricChart: View {
                             position: .top,
                             overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
                         ) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(selectedEntry.rating) — \(metric.description(for: selectedEntry.rating))")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                Text(selectedEntry.date.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(6)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                            ChartAnnotation(
+                                headline: "\(selectedEntry.rating) — \(metric.description(for: selectedEntry.rating))",
+                                date: selectedEntry.date
+                            )
                         }
                 }
             }
@@ -141,6 +165,102 @@ private struct MetricChart: View {
     }
 }
 
+private struct SymptomChart: View {
+    let symptom: Symptom
+    let points: [SymptomPoint]
+
+    @State private var selectedDate: Date?
+
+    private var options: [SymptomOption] {
+        symptom.valueKind.options
+    }
+
+    // The options array is already in display order (e.g. Not Present, Present,
+    // Mild, Moderate, Severe), so its index works as the ordinal plot position —
+    // the raw HealthKit values don't sort meaningfully (Present = 0, Not Present = 1).
+    private func position(of value: Int) -> Int {
+        options.firstIndex { $0.value == value } ?? 0
+    }
+
+    private var selectedPoint: SymptomPoint? {
+        guard let selectedDate else { return nil }
+        return points.min {
+            abs($0.date.timeIntervalSince(selectedDate)) < abs($1.date.timeIntervalSince(selectedDate))
+        }
+    }
+
+    var body: some View {
+        if points.isEmpty {
+            Text("No entries in this range.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        } else {
+            Chart {
+                ForEach(points) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Level", position(of: point.value))
+                    )
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Level", position(of: point.value))
+                    )
+                    .symbolSize(36)
+                }
+                .foregroundStyle(.blue)
+
+                if let selectedPoint {
+                    RuleMark(x: .value("Date", selectedPoint.date))
+                        .foregroundStyle(.secondary.opacity(0.4))
+                        .lineStyle(StrokeStyle(lineWidth: 1))
+                        .annotation(
+                            position: .top,
+                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                        ) {
+                            ChartAnnotation(
+                                headline: options[position(of: selectedPoint.value)].label,
+                                date: selectedPoint.date
+                            )
+                        }
+                }
+            }
+            .chartYScale(domain: -0.5...(Double(options.count - 1) + 0.5))
+            .chartYAxis {
+                AxisMarks(values: Array(0..<options.count)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let index = value.as(Int.self), options.indices.contains(index) {
+                            Text(options[index].label)
+                        }
+                    }
+                }
+            }
+            .chartXSelection(value: $selectedDate)
+            .frame(height: 180)
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+private struct ChartAnnotation: View {
+    let headline: String
+    let date: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(headline)
+                .font(.caption)
+                .fontWeight(.semibold)
+            Text(date.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
 #Preview {
-    MetricHistoryView(store: MetricStore())
+    MetricHistoryView(store: MetricStore(), symptoms: Symptom.all.prefix(3).map { $0 }, healthKit: HealthKitManager())
 }
