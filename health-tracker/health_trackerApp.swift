@@ -9,6 +9,10 @@ import SwiftUI
 
 @main
 struct health_trackerApp: App {
+    init() {
+        Perf.note("app init")
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

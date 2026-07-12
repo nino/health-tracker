@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import os
 
 struct ContentView: View {
     private let healthKit = HealthKitManager()
@@ -100,8 +101,23 @@ struct ContentView: View {
             InfoView()
         }
         .task {
-            try? await healthKit.requestAuthorization()
-            await reload()
+            Perf.note("first task started")
+            let clock = ContinuousClock()
+            let authState = Perf.signposter.beginInterval("authorization")
+            let authTime = await clock.measure {
+                try? await healthKit.requestAuthorization()
+            }
+            Perf.signposter.endInterval("authorization", authState)
+            Perf.note("authorization done after \(authTime.ms)ms")
+            let reloadState = Perf.signposter.beginInterval("reload")
+            let reloadTime = await clock.measure {
+                await reload()
+            }
+            Perf.signposter.endInterval("reload", reloadState)
+            Perf.note("reload done after \(reloadTime.ms)ms")
+        }
+        .onAppear {
+            Perf.note("ContentView appeared")
         }
         #if os(macOS)
         .frame(minWidth: 320, minHeight: 320)

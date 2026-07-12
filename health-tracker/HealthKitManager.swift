@@ -30,7 +30,10 @@ final class HealthKitManager {
     // they'd otherwise all run on the main actor and freeze the UI at launch.
     @concurrent
     nonisolated func lastLoggedDates(for symptoms: [Symptom]) async -> [Symptom: Date] {
-        await withTaskGroup(of: (Symptom, Date?).self) { group in
+        Perf.note("lastLoggedDates started (\(symptoms.count) symptoms)")
+        let clock = ContinuousClock()
+        var total = Duration.zero
+        let dates = await withTaskGroup(of: (Symptom, Date?, Duration).self) { group in
             for symptom in symptoms {
                 let type = symptom.categoryType
                 group.addTask { [store] in
@@ -39,18 +42,29 @@ final class HealthKitManager {
                         sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
                         limit: 1
                     )
-                    let sample = try? await descriptor.result(for: store).first
-                    return (symptom, sample?.endDate)
+                    var sample: HKCategorySample?
+                    let time = await clock.measure {
+                        sample = try? await descriptor.result(for: store).first
+                    }
+                    return (symptom, sample?.endDate, time)
                 }
             }
             var dates: [Symptom: Date] = [:]
-            for await (symptom, date) in group {
+            var slowest: (String, Duration) = ("", .zero)
+            for await (symptom, date, time) in group {
+                total += time
+                if time > slowest.1 {
+                    slowest = (symptom.name, time)
+                }
                 if let date {
                     dates[symptom] = date
                 }
             }
+            Perf.note("slowest query: \(slowest.0) \(slowest.1.ms)ms")
             return dates
         }
+        Perf.note("lastLoggedDates done, \(total.ms)ms total query time")
+        return dates
     }
 
     @concurrent
