@@ -13,7 +13,8 @@ struct InfoView: View {
             List {
                 Section("Logging") {
                     Text("Tap a symptom to log it. Pick a severity (or presence, for symptoms Apple Health tracks that way), adjust the date and time if you're logging something from earlier, and hit Save. Everything is written straight to Apple Health.")
-                    Text("Mood works the same way, using a 1–10 slider from very negative to very positive. It's saved as a State of Mind entry (a momentary emotion) in Apple Health.")
+                    Text("Mood works the same way, using a 1–10 slider from very negative to very positive. It's saved as a State of Mind entry (a momentary emotion) in Apple Health, and also kept in the app.")
+                    Text("Stress and anxiety use a 0–10 slider. Apple Health has no data type for them, so they live in the app only.")
                 }
 
                 Section("Last Logged") {
@@ -34,7 +35,8 @@ struct InfoView: View {
                 }
 
                 Section("Your Data") {
-                    Text("Everything lives in Apple Health — this app stores nothing else and sends nothing anywhere. You can view, edit, or delete entries in the Health app.")
+                    Text("Symptoms live in Apple Health; you can view, edit, or delete them in the Health app. Mood, stress, and anxiety entries are also stored locally, because Apple Health's export doesn't include State of Mind data. Nothing is sent anywhere.")
+                    Text("The gear icon has an export button that saves all mood, stress, and anxiety entries as a JSON file.")
                     Text("If you deny the app read access, buttons show \"never\" since Apple Health reports denied access the same as no data. Logging still works with write access alone.")
                 }
 

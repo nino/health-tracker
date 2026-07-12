@@ -10,8 +10,9 @@ import os
 
 struct ContentView: View {
     private let healthKit = HealthKitManager()
+    @State private var store = MetricStore()
     @State private var selectedSymptom: Symptom?
-    @State private var showingMood = false
+    @State private var selectedMetric: MetricKind?
     @State private var showingSettings = false
     @State private var showingInfo = false
     @State private var lastLogged: [Symptom: Date] = [:]
@@ -29,12 +30,23 @@ struct ContentView: View {
                 TimelineView(.everyMinute) { context in
                     VStack(spacing: 12) {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            logButton("Mood", icon: "face.smiling", lastDate: lastMood, now: context.date) {
-                                showingMood = true
+                            ForEach(MetricKind.allCases) { metric in
+                                // Mood recency comes from HealthKit (it also sees
+                                // entries made outside this app); stress/anxiety
+                                // exist only in the local store.
+                                logButton(
+                                    metric.name,
+                                    icon: metric.icon,
+                                    lastDate: metric == .mood ? lastMood : store.lastDate(for: metric),
+                                    now: context.date,
+                                    pending: metric == .mood && !hasLoadedDates
+                                ) {
+                                    selectedMetric = metric
+                                }
                             }
 
                             ForEach(enabledSymptoms) { symptom in
-                                logButton(symptom.name, icon: symptom.icon, lastDate: lastLogged[symptom], now: context.date) {
+                                logButton(symptom.name, icon: symptom.icon, lastDate: lastLogged[symptom], now: context.date, pending: !hasLoadedDates) {
                                     selectedSymptom = symptom
                                 }
                             }
@@ -91,11 +103,11 @@ struct ContentView: View {
         .sheet(item: $selectedSymptom, onDismiss: refresh) { symptom in
             SymptomLogView(symptom: symptom, healthKit: healthKit)
         }
-        .sheet(isPresented: $showingMood, onDismiss: refresh) {
-            MoodLogView(healthKit: healthKit)
+        .sheet(item: $selectedMetric, onDismiss: refresh) { metric in
+            MetricLogView(metric: metric, healthKit: healthKit, store: store)
         }
         .sheet(isPresented: $showingSettings, onDismiss: refresh) {
-            SettingsView()
+            SettingsView(store: store)
         }
         .sheet(isPresented: $showingInfo) {
             InfoView()
@@ -129,13 +141,14 @@ struct ContentView: View {
         icon: String,
         lastDate: Date?,
         now: Date,
+        pending: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Label(title, systemImage: icon)
                     .multilineTextAlignment(.center)
-                if lastDate == nil && !hasLoadedDates {
+                if lastDate == nil && pending {
                     ProgressView()
                         .controlSize(.mini)
                 } else {

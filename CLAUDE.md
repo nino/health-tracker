@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A personal multiplatform (iOS + macOS) SwiftUI app for logging symptoms and mood into Apple Health with minimal friction. No dependencies, no persistence outside HealthKit and one `AppStorage` key. Open source at https://github.com/nino/health-tracker.
+A personal multiplatform (iOS + macOS) SwiftUI app for logging symptoms and mood into Apple Health, plus stress and anxiety, with minimal friction. No dependencies; persistence is HealthKit, one `AppStorage` key, and a local JSON metric log (see `MetricStore.swift`). Open source at https://github.com/nino/health-tracker.
 
 ## Workflow
 
@@ -25,8 +25,9 @@ The design goal is zero duplication when adding symptom types — one symptom is
 
 - `Symptom.swift` — the heart of the app: a data-driven catalog (`Symptom.all`) of all 39 HealthKit symptom category types, each with a name, SF Symbol, `HKCategoryTypeIdentifier`, and a `ValueKind` (severity / presence / appetite) that supplies the picker options, default value, and section title. Everything else (main-screen buttons, settings toggles, authorization set, log sheet) derives from this list. Also holds the enabled-set codec for `AppStorage` and the recency-weighted random pick.
 - `HealthKitManager.swift` — the only file that touches HealthKit: authorization, saving category samples and State of Mind, and fetching last-logged dates.
-- `ContentView.swift` — main grid (Mood + enabled symptoms + Random), owns the last-logged dates state, refreshes it when any sheet dismisses, re-renders every minute via `TimelineView` so relative ages/staleness colors stay current.
-- `SymptomLogView.swift` / `MoodLogView.swift` / `SettingsView.swift` / `InfoView.swift` — one sheet each; all generic over the catalog, none hardcodes a symptom.
+- `MetricStore.swift` — `MetricKind` (mood/stress/anxiety) plus the local JSON store (`Application Support/health-tracker/metric-log.json`). Exists because Apple Health's XML export omits State of Mind, and stress/anxiety have no HealthKit type. Mood is dual-written (HealthKit + store); entries keep the user-set `date` and a `loggedAt` timestamp, serialized as ISO 8601 with local UTC offset. SettingsView exports the store as JSON via `fileExporter`.
+- `ContentView.swift` — main grid (Mood/Stress/Anxiety + enabled symptoms + Random), owns the last-logged dates state, refreshes it when any sheet dismisses, re-renders every minute via `TimelineView` so relative ages/staleness colors stay current. Mood recency comes from HealthKit (sees outside entries); stress/anxiety recency from the store.
+- `SymptomLogView.swift` / `MetricLogView.swift` / `SettingsView.swift` / `InfoView.swift` — one sheet each; all generic over the catalog (or over `MetricKind`), none hardcodes a symptom.
 - Enabled symptoms live in `@AppStorage("enabledSymptomIDs")` as comma-joined sorted identifier rawValues; ContentView and SettingsView share the key, so toggles update the main screen automatically.
 
 ## Concurrency (the big trap)
@@ -41,7 +42,7 @@ The project builds with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` **and** `SWI
 
 - Value semantics were verified against the SDK header (`HKTypeIdentifiers.h` via `xcrun --sdk iphonesimulator --show-sdk-path`), not from memory — do the same before adding/changing category types. Of the 39 symptom types, all use `HKCategoryValueSeverity` except: `appetiteChanges` (`HKCategoryValueAppetiteChanges`) and `moodChanges`/`sleepChanges` (`HKCategoryValuePresence`).
 - The UI's "Present" option maps to `HKCategoryValueSeverity.unspecified` (raw 0), not a presence value.
-- Mood is saved as `HKStateOfMind` (kind `.momentaryEmotion`); the 1–10 rating maps linearly to valence via `(rating − 5.5) / 4.5`.
+- Mood is saved as `HKStateOfMind` (kind `.momentaryEmotion`); the 1–10 rating maps linearly to valence via `(rating − 5.5) / 4.5`. Stress/anxiety use 0–10 (a real zero for "none") — the different ranges are intentional.
 - Authorization is requested for **all** symptom types plus State of Mind up front, so enabling a symptom later never re-prompts. Adding a new read/share type will trigger one new permission prompt on next launch — mention that to Nino when it happens.
 - HealthKit reports "read access denied" identically to "no data"; the UI treats both as never logged. Don't try to distinguish them.
 - Recency queries sort by `endDate` (the user-set sample date), so backdated entries are handled correctly.

@@ -1,12 +1,16 @@
 //
-//  MoodLogView.swift
+//  MetricLogView.swift
 //  health-tracker
 //
 
 import SwiftUI
 
-struct MoodLogView: View {
+// One sheet for mood, stress, and anxiety. All three are saved to the local
+// MetricStore; mood additionally goes to Apple Health as State of Mind.
+struct MetricLogView: View {
+    let metric: MetricKind
     let healthKit: HealthKitManager
+    let store: MetricStore
 
     @Environment(\.dismiss) private var dismiss
     @State private var rating = 5.0
@@ -16,46 +20,55 @@ struct MoodLogView: View {
 
     private var ratingValue: Int { Int(rating.rounded()) }
 
-    private var moodDescription: String {
-        switch ratingValue {
-        case 1...2: "Very Negative"
-        case 3...4: "Negative"
-        case 5...6: "Neutral"
-        case 7...8: "Positive"
-        default: "Very Positive"
+    private var ratingColor: Color {
+        switch metric {
+        case .mood:
+            switch ratingValue {
+            case 1...2: .red
+            case 3...4: .orange
+            case 5...6: .gray
+            case 7...8: .teal
+            default: .green
+            }
+        case .stress, .anxiety:
+            switch ratingValue {
+            case 0...2: .green
+            case 3...4: .teal
+            case 5...6: .gray
+            case 7...8: .orange
+            default: .red
+            }
         }
     }
 
-    private var moodColor: Color {
-        switch ratingValue {
-        case 1...2: .red
-        case 3...4: .orange
-        case 5...6: .gray
-        case 7...8: .teal
-        default: .green
-        }
+    private var minSymbol: String {
+        metric == .mood ? "hand.thumbsdown" : "leaf"
+    }
+
+    private var maxSymbol: String {
+        metric == .mood ? "hand.thumbsup" : "flame"
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Mood") {
+                Section(metric.name) {
                     VStack(spacing: 8) {
                         Text("\(ratingValue)")
                             .font(.system(size: 52, weight: .bold, design: .rounded))
-                            .foregroundStyle(moodColor)
+                            .foregroundStyle(ratingColor)
                             .contentTransition(.numericText())
                             .animation(.default, value: ratingValue)
-                        Text(moodDescription)
+                        Text(metric.description(for: ratingValue))
                             .font(.headline)
                             .foregroundStyle(.secondary)
-                        Slider(value: $rating, in: 1...10, step: 1) {
-                            Text("Mood")
+                        Slider(value: $rating, in: metric.range, step: 1) {
+                            Text(metric.name)
                         } minimumValueLabel: {
-                            Image(systemName: "hand.thumbsdown")
+                            Image(systemName: minSymbol)
                                 .foregroundStyle(.secondary)
                         } maximumValueLabel: {
-                            Image(systemName: "hand.thumbsup")
+                            Image(systemName: maxSymbol)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -87,7 +100,7 @@ struct MoodLogView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Mood")
+            .navigationTitle(metric.name)
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -117,7 +130,10 @@ struct MoodLogView: View {
         isSaving = true
         Task {
             do {
-                try await healthKit.saveMood(rating: ratingValue, date: date)
+                if metric == .mood {
+                    try await healthKit.saveMood(rating: ratingValue, date: date)
+                }
+                try store.add(metric, rating: ratingValue, date: date)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -128,5 +144,5 @@ struct MoodLogView: View {
 }
 
 #Preview {
-    MoodLogView(healthKit: HealthKitManager())
+    MetricLogView(metric: .stress, healthKit: HealthKitManager(), store: MetricStore())
 }
