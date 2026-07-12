@@ -188,8 +188,11 @@ struct ContentView: View {
     }
 
     private func reload() async {
+        // Only the enabled symptoms ever show on screen, and enabling more in
+        // settings re-triggers this via the sheet's onDismiss — so don't hit
+        // healthd for all 39 types.
         async let mood = healthKit.lastMoodDate()
-        async let dates = healthKit.lastLoggedDates(for: Symptom.all)
+        async let dates = healthKit.lastLoggedDates(for: enabledSymptoms)
         lastMood = await mood
         lastLogged = await dates
         hasLoadedDates = true

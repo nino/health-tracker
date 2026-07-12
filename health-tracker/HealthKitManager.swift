@@ -34,9 +34,16 @@ final class HealthKitManager {
         let clock = ContinuousClock()
         var total = Duration.zero
         let dates = await withTaskGroup(of: (Symptom, Date?, Duration).self) { group in
-            for symptom in symptoms {
+            // Throttled to 4 in-flight queries at utility priority: a full-width
+            // fan-out saturates healthd on a cold start, which lags the whole
+            // UI even though this app's main thread is idle.
+            var next = 0
+            func enqueue() {
+                guard next < symptoms.count else { return }
+                let symptom = symptoms[next]
+                next += 1
                 let type = symptom.categoryType
-                group.addTask { [store] in
+                group.addTask(priority: .utility) { [store] in
                     let descriptor = HKSampleQueryDescriptor(
                         predicates: [.categorySample(type: type)],
                         sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)],
@@ -49,9 +56,12 @@ final class HealthKitManager {
                     return (symptom, sample?.endDate, time)
                 }
             }
+            for _ in 0..<4 { enqueue() }
+
             var dates: [Symptom: Date] = [:]
             var slowest: (String, Duration) = ("", .zero)
             for await (symptom, date, time) in group {
+                enqueue()
                 total += time
                 if time > slowest.1 {
                     slowest = (symptom.name, time)
