@@ -37,3 +37,4 @@ Plain SwiftUI, no dependencies. Everything lives in `health-tracker/`:
 - `SymptomLogView.swift` — sheet for logging one symptom: value picker, date/time, save.
 - `MoodLogView.swift` — sheet for logging mood: 1–10 slider with label/color feedback, date/time, save.
 - `SettingsView.swift` — toggle list of all symptoms controlling what shows on the main screen.
+- `InfoView.swift` — the info-button sheet explaining how the app works, including the staleness color legend.

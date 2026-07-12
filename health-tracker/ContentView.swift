@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var selectedSymptom: Symptom?
     @State private var showingMood = false
     @State private var showingSettings = false
+    @State private var showingInfo = false
     @State private var lastLogged: [Symptom: Date] = [:]
     @State private var lastMood: Date?
     @AppStorage("enabledSymptomIDs") private var enabledIDsStorage = Symptom.defaultEnabledStorage
@@ -71,7 +72,12 @@ struct ContentView: View {
             }
             .navigationTitle("Log Symptom")
             .toolbar {
-                ToolbarItem {
+                ToolbarItemGroup {
+                    Button {
+                        showingInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
                     Button {
                         showingSettings = true
                     } label: {
@@ -88,6 +94,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingSettings, onDismiss: refresh) {
             SettingsView()
+        }
+        .sheet(isPresented: $showingInfo) {
+            InfoView()
         }
         .task {
             try? await healthKit.requestAuthorization()
