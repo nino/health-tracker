@@ -148,7 +148,7 @@ private struct MetricChart: View {
                         .lineStyle(StrokeStyle(lineWidth: 1))
                         .annotation(
                             position: .top,
-                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                            overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))
                         ) {
                             ChartAnnotation(
                                 headline: "\(selectedEntry.rating) — \(metric.description(for: selectedEntry.rating))",
@@ -216,7 +216,7 @@ private struct SymptomChart: View {
                         .lineStyle(StrokeStyle(lineWidth: 1))
                         .annotation(
                             position: .top,
-                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                            overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))
                         ) {
                             ChartAnnotation(
                                 headline: options[position(of: selectedPoint.value)].label,
