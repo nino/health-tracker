@@ -25,13 +25,30 @@ struct ContentView: View {
             ScrollView {
                 TimelineView(.everyMinute) { context in
                     VStack(spacing: 12) {
-                        logButton("Mood", icon: "face.smiling", lastDate: lastMood, now: context.date) {
-                            showingMood = true
-                        }
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            logButton("Mood", icon: "face.smiling", lastDate: lastMood, now: context.date) {
+                                showingMood = true
+                            }
 
-                        ForEach(enabledSymptoms) { symptom in
-                            logButton(symptom.name, icon: symptom.icon, lastDate: lastLogged[symptom], now: context.date) {
-                                selectedSymptom = symptom
+                            ForEach(enabledSymptoms) { symptom in
+                                logButton(symptom.name, icon: symptom.icon, lastDate: lastLogged[symptom], now: context.date) {
+                                    selectedSymptom = symptom
+                                }
+                            }
+
+                            if !enabledSymptoms.isEmpty {
+                                Button {
+                                    selectedSymptom = Symptom.weightedRandomByRecency(
+                                        among: enabledSymptoms,
+                                        lastLogged: lastLogged
+                                    )
+                                } label: {
+                                    Label("Random", systemImage: "dice")
+                                        .multilineTextAlignment(.center)
+                                        .frame(maxWidth: .infinity, minHeight: 56)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.purple)
                             }
                         }
 
@@ -40,19 +57,6 @@ struct ContentView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .padding(.top)
-                        } else {
-                            Button {
-                                selectedSymptom = Symptom.weightedRandomByRecency(
-                                    among: enabledSymptoms,
-                                    lastLogged: lastLogged
-                                )
-                            } label: {
-                                Label("Random", systemImage: "dice")
-                                    .font(.title3)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.purple)
                         }
 
                         if !healthKit.isAvailable {
@@ -104,22 +108,23 @@ struct ContentView: View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Label(title, systemImage: icon)
-                    .font(.title3)
-                Text(lastLoggedText(lastDate))
+                    .multilineTextAlignment(.center)
+                Text(lastLoggedText(lastDate, now: now))
                     .font(.caption)
                     .foregroundStyle(stalenessColor(lastDate, now: now))
             }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: 56)
         }
         .buttonStyle(.bordered)
     }
 
-    private func lastLoggedText(_ date: Date?) -> String {
-        guard let date else { return "Never logged" }
-        if Calendar.current.isDateInToday(date) {
-            return date.formatted(date: .omitted, time: .shortened)
-        }
-        return date.formatted(date: .abbreviated, time: .shortened)
+    private func lastLoggedText(_ date: Date?, now: Date) -> String {
+        guard let date else { return "never" }
+        let minutes = Int(now.timeIntervalSince(date) / 60)
+        if minutes < 60 { return "\(max(minutes, 0))m" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h" }
+        return "\(hours / 24)d"
     }
 
     private func stalenessColor(_ date: Date?, now: Date) -> Color {

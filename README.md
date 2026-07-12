@@ -4,13 +4,13 @@ A small SwiftUI app for logging symptoms and mood into Apple Health as fast as p
 
 ## Features
 
-- **One-tap symptom buttons** — the main screen is just a list of big buttons for the symptoms you actually track.
+- **One-tap symptom buttons** — the main screen is a two-column grid of buttons for the symptoms you actually track.
 - **All 39 HealthKit symptom types** — choose which appear on the main screen via the gear icon. Toggles are persisted in `AppStorage`; six sensible defaults are enabled out of the box (headache, nausea, fatigue, runny nose, sore throat, congestion).
 - **Correct value types per symptom** — most symptoms use HealthKit's severity scale (Not Present / Present / Mild / Moderate / Severe); Mood Changes and Sleep Changes use presence; Appetite Changes uses No Change / Decreased / Increased.
 - **Mood logging** — a 1–10 slider saved via the State of Mind API (`HKStateOfMind`, momentary emotion), mapped linearly to valence −1…+1 with 5.5 as neutral.
 - **Random button** — picks a symptom to log, weighted toward the ones logged least recently. It queries HealthKit for each enabled symptom's most recent sample; weights run linearly from 1x (newest) to 3x (oldest), with never-logged symptoms counting as oldest. A nudge toward even coverage, not a guarantee.
 - **Backdating** — every log sheet has an editable date/time, so you can enter something you forgot earlier.
-- **Last-logged timestamps** — each button shows when that symptom (or mood) was last logged, color-coded by staleness: neutral under 2 hours, green 2–4h, yellow 4–8h, orange 8–24h, red beyond a day or never logged.
+- **Last-logged timestamps** — each button shows how long ago that symptom (or mood) was last logged (e.g. "4h"), color-coded by staleness: neutral under 2 hours, green 2–4h, yellow 4–8h, orange 8–24h, red beyond a day or never logged.
 
 ## Requirements
 
