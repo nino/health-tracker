@@ -56,12 +56,25 @@ struct ContentView: View {
                                         lastLogged: lastLogged
                                     )
                                 } label: {
-                                    Label("Random", systemImage: "dice")
-                                        .multilineTextAlignment(.center)
-                                        .frame(maxWidth: .infinity, minHeight: 56)
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "dice")
+                                            .font(.title3)
+                                            .foregroundStyle(.purple)
+                                            .frame(width: 26)
+                                        Text("Random")
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(.primary)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+                                    .background(cardColor, in: RoundedRectangle(cornerRadius: 16))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .strokeBorder(.quaternary, lineWidth: 1)
+                                    )
                                 }
-                                .buttonStyle(.bordered)
-                                .tint(.purple)
+                                .buttonStyle(CardButtonStyle())
                             }
                         }
 
@@ -82,6 +95,7 @@ struct ContentView: View {
                     .padding()
                 }
             }
+            .background(screenColor.ignoresSafeArea())
             .navigationTitle("Log Symptom")
             .toolbar {
                 ToolbarItemGroup {
@@ -154,21 +168,60 @@ struct ContentView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 2) {
-                Label(title, systemImage: icon)
-                    .multilineTextAlignment(.center)
-                if lastDate == nil && pending {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else {
-                    Text(lastLoggedText(lastDate, now: now))
+            // Card layout: text wears text colors for contrast; the tinted icon
+            // and the staleness dot carry the color.
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                    if lastDate == nil && pending {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(stalenessColor(lastDate, now: now))
+                                .frame(width: 8, height: 8)
+                            Text(lastLoggedText(lastDate, now: now))
+                                .foregroundStyle(.secondary)
+                        }
                         .font(.caption)
-                        .foregroundStyle(stalenessColor(lastDate, now: now))
+                    }
                 }
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, minHeight: 56)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .background(cardColor, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(.quaternary, lineWidth: 1)
+            )
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(CardButtonStyle())
+    }
+
+    private var cardColor: Color {
+        #if os(macOS)
+        Color(nsColor: .controlBackgroundColor)
+        #else
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+
+    private var screenColor: Color {
+        #if os(macOS)
+        Color(nsColor: .windowBackgroundColor)
+        #else
+        Color(uiColor: .systemGroupedBackground)
+        #endif
     }
 
     private func lastLoggedText(_ date: Date?, now: Date) -> String {
@@ -218,6 +271,15 @@ struct ContentView: View {
         // local MetricStore, not HealthKit, to keep cold launch cheap.
         lastLogged = await healthKit.lastLoggedDates(for: enabledSymptoms)
         hasLoadedDates = true
+    }
+}
+
+private struct CardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
