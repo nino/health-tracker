@@ -20,7 +20,7 @@ A small SwiftUI app for logging symptoms and mood into Apple Health as fast as p
 
 ## Setup
 
-1. Open `health-tracker.xcodeproj` in Xcode.
+1. Open `ios/health-tracker.xcodeproj` in Xcode.
 2. In the target's Signing & Capabilities, select your own development team if Xcode doesn't do it automatically.
 3. Pick an iPhone or Mac run destination and hit Run.
 4. On first launch the app requests HealthKit authorization for all symptom types and State of Mind up front — grant what you want to log. (Asking for everything once means enabling a new symptom later doesn't trigger another prompt.)
@@ -29,7 +29,7 @@ Note: HealthKit reports "no data" and "read access denied" identically, so if yo
 
 ## Architecture
 
-Plain SwiftUI, no dependencies. Everything lives in `health-tracker/`:
+Plain SwiftUI, no dependencies. Everything lives in `ios/health-tracker/`:
 
 - `ContentView.swift` — main screen: mood button, enabled symptom buttons, Random button, gear icon for settings. Requests HealthKit authorization on appear and presents the log sheets.
 - `Symptom.swift` — the model: the full catalog of 39 HealthKit symptom types with names/icons, their value kinds (severity / presence / appetite) and picker options, the enabled-set encoding for `AppStorage`, and the recency-weighted random pick.

@@ -6,18 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A personal multiplatform (iOS + macOS) SwiftUI app for logging symptoms and mood into Apple Health, plus stress and anxiety, with minimal friction. No dependencies; persistence is HealthKit, one `AppStorage` key, and a local JSON metric log (see `MetricStore.swift`). Open source at https://github.com/nino/health-tracker.
 
+The Swift app lives in `ios/`. A cross-platform React Native + Expo rewrite (iOS + Android, local-first, pluggable health backends, zero dependencies beyond RN/Expo) is planned — see `docs/react-native-rewrite.md`.
+
 ## Workflow
 
 - Push to `origin main` immediately after every commit (Nino's standing instruction).
 - Verify changes by building **both** platforms:
   ```sh
-  xcodebuild -project health-tracker.xcodeproj -scheme health-tracker -destination 'generic/platform=iOS Simulator' build
-  xcodebuild -project health-tracker.xcodeproj -scheme health-tracker -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+  xcodebuild -project ios/health-tracker.xcodeproj -scheme health-tracker -destination 'generic/platform=iOS Simulator' build
+  xcodebuild -project ios/health-tracker.xcodeproj -scheme health-tracker -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
   ```
   `CODE_SIGNING_ALLOWED=NO` is needed for macOS because CLI builds can't do the interactive Apple ID signing; real signed runs happen through the Xcode UI. On-device behavior (HealthKit prompts, launch performance) can only be tested by Nino on his iPhone — ask rather than assume.
-- `health-trackerTests`/`health-trackerUITests` are untouched Xcode template stubs; there is no meaningful test suite. (`xcodebuild test -scheme health-tracker -destination 'platform=iOS Simulator,name=iPhone 17'` would run them.)
+- `health-trackerTests`/`health-trackerUITests` are untouched Xcode template stubs; there is no meaningful test suite. (`xcodebuild test -project ios/health-tracker.xcodeproj -scheme health-tracker -destination 'platform=iOS Simulator,name=iPhone 17'` would run them.)
 - Ignore SourceKit diagnostics like "Cannot find 'Symptom' in scope" that appear after edits — they are stale-index noise in this project. Trust `xcodebuild` output only.
-- The app target uses a filesystem-synchronized group: any file added under `health-tracker/` is automatically part of the target, no pbxproj edit needed.
+- The app target uses a filesystem-synchronized group: any file added under `ios/health-tracker/` is automatically part of the target, no pbxproj edit needed.
 
 ## Architecture
 
