@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ninoan.healthtracker"
+      "bundleIdentifier": "com.ninoan.healthtracker",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.ninoan.healthtracker",
@@ -21,9 +24,24 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": { "favicon": "./assets/favicon.png" },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
-      ["expo-build-properties", { "android": { "minSdkVersion": 26 } }]
-    ]
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "90fef081-d27b-43f6-9e91-6231cdc2df6d"
+      }
+    },
+    "owner": "ninoan"
   }
 }
