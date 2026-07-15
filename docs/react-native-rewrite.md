@@ -37,9 +37,10 @@ statuses and library facts were verified on that date.
   `ios/health-tracker/HealthKitManager.swift` (139 lines) is already exactly that
   surface. **Decision: write our own Expo modules** (Swift + Kotlin).
 - **What the rewrite gives up: the native macOS app.** RN targets iOS/Android.
-  Mitigations: the RN iOS app can run on Apple-silicon Macs ("Designed for iPad"),
-  and the Swift app in `ios/` keeps working and can be kept for Mac use as long as
-  it's worth the upkeep. Decide at the end of Phase 4 whether to retire it.
+  Accepted (2026-07-15): the macOS app isn't in use, so losing it is fine. Long-term,
+  the realistic path to Mac support is running the RN iOS app on Apple-silicon Macs
+  ("Designed for iPad") — `react-native-macos` exists but isn't Expo-supported, so it
+  would break the zero-dependency/Expo constraint.
 
 ## Repo layout
 
@@ -126,9 +127,9 @@ fixed y-domain; symptom y-axis is the option index in display order.
 ## Migration from the Swift app
 
 First-run import, iOS only, mirroring the existing one-time mood import pattern:
-1. **Metrics**: import `metric-log.json` — either read directly from the shared
-   Application Support path if the RN app replaces the Swift app under the same bundle
-   id (decision below), or via the JSON export/share flow.
+1. **Metrics**: import `metric-log.json` via the Swift app's JSON export + the share
+   sheet (the apps run side by side under different bundle ids, so sandboxing rules
+   out reading the file directly).
 2. **Symptoms**: backfill full history from HealthKit through `history()` (the Swift
    app never stored symptoms locally). ±2s dedup against anything already mirrored.
 3. Imported entries use the sample date as `logged_at` (original logging time is
@@ -144,17 +145,21 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
 3. **UI parity** — main grid, log sheets, settings, info, charts; local-only.
    Milestone: the friend can install an APK and start logging.
 4. **HealthKit backend** — Swift module, write-through mirroring, first-run import.
-   Milestone: Nino switches daily logging to the RN app; decide the fate of the
-   Swift app / macOS.
+   Milestone: Nino switches daily logging to the RN app; the Swift app can be
+   retired once nothing is missed.
 5. **Health Connect backend** — when Google ships symptom/mood record types, fill in
    the Kotlin module and flip `capabilities()`.
 
-## Open decisions
+## Decisions (settled 2026-07-15)
 
-- **Bundle id**: reuse the Swift app's (in-place upgrade keeps HealthKit permissions
-  and Application Support data, making import trivial) vs. a new id (both installable
-  side by side during transition). Leaning: side-by-side during Phases 1–3, decide
-  before shipping Phase 4.
-- **Icons**: emoji vs. bundled vector assets for symptom glyphs on Android.
-- **Distribution to the friend**: direct APK vs. Play internal testing track (needs a
-  Play developer account).
+- **Bundle id**: new id, side by side with the Swift app during the transition.
+  Import happens via the export/share flow (see Migration above).
+- **Icons**: emoji for symptom/metric glyphs — cross-platform for free, revisit only
+  if it looks bad in practice.
+- **Distribution**: direct APK sideload for the friend (EAS build with an `apk`
+  buildType profile; she enables "install unknown apps" once — updates are re-sent
+  files, and the EAS-managed keystore must stay the same across builds or Android
+  refuses the update). For iOS, TestFlight eventually via EAS Submit — the Apple
+  Developer membership the HealthKit entitlement already requires covers it; internal
+  testing needs no App Review. Play internal testing track only if APK-passing gets
+  annoying.
