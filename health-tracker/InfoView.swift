@@ -13,6 +13,7 @@ struct InfoView: View {
             List {
                 Section("Logging") {
                     Text("Tap a symptom to log it. Pick a severity (or presence, for symptoms Apple Health tracks that way), adjust the date and time if you're logging something from earlier, and hit Save. Everything is written straight to Apple Health.")
+                    Text("Save & Next saves the entry and immediately moves on to whatever you've logged least recently, so you can sweep through everything in one sitting.")
                     Text("Mood works the same way, using a 1–10 slider from very negative to very positive. It's saved as a State of Mind entry (a momentary emotion) in Apple Health, and also kept in the app.")
                     Text("Stress and anxiety use a 0–10 slider. Apple Health has no data type for them, so they live in the app only.")
                     Text("The chart icon in the toolbar shows the history of your moods, stress, anxiety, and enabled symptoms over time — tap or drag on a chart to inspect an entry.")
@@ -28,7 +29,7 @@ struct InfoView: View {
                 }
 
                 Section("Random") {
-                    Text("The Random button picks one of your symptoms to log, slightly preferring the ones you've logged least recently. Pressing it now and then helps you record the absence of symptoms you haven't been thinking about — useful data, too.")
+                    Text("The Random button picks one of your symptoms to log, strongly preferring the ones you've logged least recently — something you logged minutes ago is very unlikely to come up again. Pressing it now and then helps you record the absence of symptoms you haven't been thinking about — useful data, too.")
                 }
 
                 Section("Choosing Symptoms") {

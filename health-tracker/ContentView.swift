@@ -8,11 +8,24 @@
 import SwiftUI
 import os
 
+// One value for "a thing you can log from the main grid", so the log sheet
+// can hop from a symptom to a metric (and vice versa) via Save & Next.
+enum LogTarget: Identifiable, Hashable {
+    case metric(MetricKind)
+    case symptom(Symptom)
+
+    var id: String {
+        switch self {
+        case .metric(let metric): "metric-\(metric.rawValue)"
+        case .symptom(let symptom): symptom.id
+        }
+    }
+}
+
 struct ContentView: View {
     private let healthKit = HealthKitManager()
     @State private var store = MetricStore()
-    @State private var selectedSymptom: Symptom?
-    @State private var selectedMetric: MetricKind?
+    @State private var logTarget: LogTarget?
     @State private var showingSettings = false
     @State private var showingInfo = false
     @State private var showingHistory = false
@@ -39,22 +52,22 @@ struct ContentView: View {
                                     now: context.date,
                                     pending: false
                                 ) {
-                                    selectedMetric = metric
+                                    logTarget = .metric(metric)
                                 }
                             }
 
                             ForEach(enabledSymptoms) { symptom in
                                 logButton(symptom.name, icon: symptom.icon, lastDate: lastLogged[symptom], now: context.date, pending: !hasLoadedDates) {
-                                    selectedSymptom = symptom
+                                    logTarget = .symptom(symptom)
                                 }
                             }
 
                             if !enabledSymptoms.isEmpty {
                                 Button {
-                                    selectedSymptom = Symptom.weightedRandomByRecency(
+                                    logTarget = Symptom.weightedRandomByRecency(
                                         among: enabledSymptoms,
                                         lastLogged: lastLogged
-                                    )
+                                    ).map(LogTarget.symptom)
                                 } label: {
                                     HStack(spacing: 10) {
                                         Image(systemName: "dice")
@@ -117,11 +130,28 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(item: $selectedSymptom, onDismiss: refresh) { symptom in
-            SymptomLogView(symptom: symptom, healthKit: healthKit)
-        }
-        .sheet(item: $selectedMetric, onDismiss: refresh) { metric in
-            MetricLogView(metric: metric, healthKit: healthKit, store: store)
+        .sheet(item: $logTarget, onDismiss: refresh) { target in
+            Group {
+                switch target {
+                case .symptom(let symptom):
+                    SymptomLogView(symptom: symptom, healthKit: healthKit) { savedDate in
+                        // Keep the in-memory recency current so a Save & Next chain
+                        // doesn't land on the symptom just saved; the HealthKit
+                        // reload only happens when the sheet finally dismisses.
+                        lastLogged[symptom] = max(lastLogged[symptom] ?? .distantPast, savedDate)
+                        logTarget = nextTarget(after: target)
+                    }
+                case .metric(let metric):
+                    MetricLogView(metric: metric, healthKit: healthKit, store: store) { _ in
+                        // MetricStore already reflects the save; no local bookkeeping.
+                        logTarget = nextTarget(after: target)
+                    }
+                }
+            }
+            // Save & Next swaps the item while the sheet stays up; without an
+            // explicit identity the swapped-in view would inherit the previous
+            // target's @State (picker value, date).
+            .id(target.id)
         }
         .sheet(isPresented: $showingSettings, onDismiss: refresh) {
             SettingsView(store: store)
@@ -247,6 +277,23 @@ struct ContentView: View {
 
     private func refresh() {
         Task { await reload() }
+    }
+
+    // The least-recently-logged tile other than the one just saved — what
+    // Save & Next moves the sheet to. Never-logged counts as oldest.
+    private func nextTarget(after current: LogTarget) -> LogTarget? {
+        let candidates = MetricKind.allCases.map(LogTarget.metric)
+            + enabledSymptoms.map(LogTarget.symptom)
+        return candidates
+            .filter { $0 != current }
+            .min { (lastDate(for: $0) ?? .distantPast) < (lastDate(for: $1) ?? .distantPast) }
+    }
+
+    private func lastDate(for target: LogTarget) -> Date? {
+        switch target {
+        case .metric(let metric): store.lastDate(for: metric)
+        case .symptom(let symptom): lastLogged[symptom]
+        }
     }
 
     // One-time pull of State of Mind entries that predate the local store, so
