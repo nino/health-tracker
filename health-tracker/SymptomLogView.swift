@@ -8,16 +8,21 @@ import SwiftUI
 struct SymptomLogView: View {
     let symptom: Symptom
     let healthKit: HealthKitManager
+    // Called with the saved sample date instead of dismissing, so the parent
+    // can move the sheet on to the next least-recently-logged entry.
+    let onSaveAndNext: ((Date) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedValue: Int
     @State private var date = Date()
     @State private var isSaving = false
+    @State private var savingNext = false
     @State private var errorMessage: String?
 
-    init(symptom: Symptom, healthKit: HealthKitManager) {
+    init(symptom: Symptom, healthKit: HealthKitManager, onSaveAndNext: ((Date) -> Void)? = nil) {
         self.symptom = symptom
         self.healthKit = healthKit
+        self.onSaveAndNext = onSaveAndNext
         _selectedValue = State(initialValue: symptom.valueKind.defaultValue)
     }
 
@@ -49,21 +54,41 @@ struct SymptomLogView: View {
                 }
 
                 Section {
-                    Button {
-                        save()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if isSaving {
-                                ProgressView()
-                            } else {
-                                Text("Save")
-                                    .fontWeight(.semibold)
+                    HStack(spacing: 12) {
+                        Button {
+                            save()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                if isSaving && !savingNext {
+                                    ProgressView()
+                                } else {
+                                    Text("Save")
+                                        .fontWeight(.semibold)
+                                }
+                                Spacer()
                             }
-                            Spacer()
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if onSaveAndNext != nil {
+                            Button {
+                                save(andNext: true)
+                            } label: {
+                                HStack {
+                                    Spacer()
+                                    if isSaving && savingNext {
+                                        ProgressView()
+                                    } else {
+                                        Text("Save & Next")
+                                            .fontWeight(.semibold)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.bordered)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(isSaving)
                 }
             }
@@ -94,12 +119,17 @@ struct SymptomLogView: View {
         #endif
     }
 
-    private func save() {
+    private func save(andNext: Bool = false) {
         isSaving = true
+        savingNext = andNext
         Task {
             do {
                 try await healthKit.save(symptom, value: selectedValue, date: date)
-                dismiss()
+                if andNext, let onSaveAndNext {
+                    onSaveAndNext(date)
+                } else {
+                    dismiss()
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }

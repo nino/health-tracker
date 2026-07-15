@@ -129,23 +129,24 @@ nonisolated struct Symptom: Identifiable, Hashable {
         return all.filter { ids.contains($0.id) }
     }
 
-    // Random pick that slightly favors symptoms logged least recently, so
-    // occasional "Random" logging spreads coverage across all symptoms.
-    // Never-logged symptoms count as oldest. Weights run linearly from 1x
-    // (most recent) to 3x (least recent) regardless of how many symptoms
-    // are enabled — a nudge, not a guarantee.
+    // Random pick strongly biased toward symptoms logged least recently, so
+    // "Random" logging spreads coverage across all symptoms. Weights are
+    // proportional to the time since the last log, clamped between one minute
+    // and one week: a symptom logged moments ago is ~10,000× less likely than
+    // one a week old, while everything at least a week stale (including
+    // never-logged, which counts as oldest) is a uniform draw.
     static func weightedRandomByRecency(among symptoms: [Symptom], lastLogged: [Symptom: Date]) -> Symptom? {
         guard symptoms.count > 1 else { return symptoms.first }
-        let oldestFirst = symptoms.sorted {
-            (lastLogged[$0] ?? .distantPast) < (lastLogged[$1] ?? .distantPast)
+        let now = Date()
+        let weights = symptoms.map { symptom in
+            let age = now.timeIntervalSince(lastLogged[symptom] ?? .distantPast)
+            return min(max(age, 60), 7 * 86_400)
         }
-        let step = 2.0 / Double(oldestFirst.count - 1)
-        let weights = oldestFirst.indices.map { 1.0 + step * Double(oldestFirst.count - 1 - $0) }
         var remaining = Double.random(in: 0..<weights.reduce(0, +))
-        for (symptom, weight) in zip(oldestFirst, weights) {
+        for (symptom, weight) in zip(symptoms, weights) {
             remaining -= weight
             if remaining < 0 { return symptom }
         }
-        return oldestFirst.last
+        return symptoms.last
     }
 }

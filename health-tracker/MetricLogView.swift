@@ -11,11 +11,15 @@ struct MetricLogView: View {
     let metric: MetricKind
     let healthKit: HealthKitManager
     let store: MetricStore
+    // Called with the saved sample date instead of dismissing, so the parent
+    // can move the sheet on to the next least-recently-logged entry.
+    var onSaveAndNext: ((Date) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var rating = 5.0
     @State private var date = Date()
     @State private var isSaving = false
+    @State private var savingNext = false
     @State private var errorMessage: String?
 
     private var ratingValue: Int { Int(rating.rounded()) }
@@ -81,21 +85,41 @@ struct MetricLogView: View {
                 }
 
                 Section {
-                    Button {
-                        save()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if isSaving {
-                                ProgressView()
-                            } else {
-                                Text("Save")
-                                    .fontWeight(.semibold)
+                    HStack(spacing: 12) {
+                        Button {
+                            save()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                if isSaving && !savingNext {
+                                    ProgressView()
+                                } else {
+                                    Text("Save")
+                                        .fontWeight(.semibold)
+                                }
+                                Spacer()
                             }
-                            Spacer()
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if onSaveAndNext != nil {
+                            Button {
+                                save(andNext: true)
+                            } label: {
+                                HStack {
+                                    Spacer()
+                                    if isSaving && savingNext {
+                                        ProgressView()
+                                    } else {
+                                        Text("Save & Next")
+                                            .fontWeight(.semibold)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.bordered)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(isSaving)
                 }
             }
@@ -126,15 +150,20 @@ struct MetricLogView: View {
         #endif
     }
 
-    private func save() {
+    private func save(andNext: Bool = false) {
         isSaving = true
+        savingNext = andNext
         Task {
             do {
                 if metric == .mood {
                     try await healthKit.saveMood(rating: ratingValue, date: date)
                 }
                 try store.add(metric, rating: ratingValue, date: date)
-                dismiss()
+                if andNext, let onSaveAndNext {
+                    onSaveAndNext(date)
+                } else {
+                    dismiss()
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }
