@@ -150,6 +150,13 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
    (needs Nino's Expo account).*
 2. **Domain core** — catalog port, SQLite store + migrations + export. This layer is
    pure TS: unit-test it (the first real tests in this project).
+   *Status 2026-07-15: done. `src/catalog/` (39 symptoms + 3 metrics, HK raw
+   values re-verified against the iOS 26.5 SDK header), `src/store/`
+   (EntryStore on a SqlDriver interface — expo-sqlite in the app, bun:sqlite
+   in tests; PRAGMA user_version migrations; ±2s import dedup; Swift-export
+   parser; Swift-compatible JSON export). 31 tests. Note: ordering/range
+   queries use a `date_unix_ms` column because local-offset ISO strings don't
+   sort across DST boundaries.*
 3. **UI parity** — main grid, log sheets, settings, info, charts; local-only.
    Milestone: the friend can install an APK and start logging.
 4. **HealthKit backend** — Swift module, write-through mirroring, first-run import.

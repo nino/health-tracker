@@ -1,4 +1,6 @@
+import { randomUUID } from "expo-crypto";
 import { StatusBar } from "expo-status-bar";
+import { useMemo } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -6,8 +8,12 @@ import {
   HealthConnectSdkStatus,
 } from "./modules/health-connect";
 import { HealthKit } from "./modules/health-kit";
+import { SYMPTOMS } from "./src/catalog";
+import { EntryStore, SCHEMA_VERSION } from "./src/store";
+import { openAppDatabase } from "./src/store/expoSqliteDriver";
 
-// Phase-1 smoke screen: proves the JS bundle and both native modules load.
+// Phase-2 smoke screen: proves the JS bundle, both native modules, and the
+// SQLite store (open + migrate on real expo-sqlite) all work on-device.
 // Replaced by the real main grid in phase 3.
 function backendStatus(): string {
   if (Platform.OS === "ios") {
@@ -23,11 +29,23 @@ function backendStatus(): string {
   return `No health backend on ${Platform.OS}`;
 }
 
+function storeStatus(): string {
+  try {
+    const store = new EntryStore(openAppDatabase(), randomUUID);
+    return `Store: ${store.count()} entries, schema v${SCHEMA_VERSION}`;
+  } catch (error) {
+    return `Store failed: ${String(error)}`;
+  }
+}
+
 export function App() {
+  const store = useMemo(storeStatus, []);
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Health Tracker</Text>
       <Text>{backendStatus()}</Text>
+      <Text>{store}</Text>
+      <Text>{SYMPTOMS.length} symptoms in catalog</Text>
       <StatusBar style="auto" />
     </View>
   );
