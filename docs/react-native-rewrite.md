@@ -12,10 +12,14 @@ statuses and library facts were verified on that date.
    the source of truth. (Today the Swift app stores symptoms only in HealthKit.)
 3. **Pluggable backends**: Apple HealthKit on iOS, Android Health Connect on Android,
    gracefully degrading to local-only where a backend can't hold a record type.
-4. **Zero dependencies beyond RN + Expo.** No third-party health bindings, no chart
-   library, no navigation library. Only Expo-curated packages (`expo-sqlite`,
-   `expo-file-system`, and the Expo Modules API for our own native code) — everything
-   else hand-rolled, same spirit as the Swift app.
+4. **Zero dependencies beyond RN + Expo, with one blessed exception: TanStack.**
+   No third-party health bindings, no chart library, no navigation library. Only
+   Expo-curated packages (`expo-sqlite`, `expo-file-system`, and the Expo Modules
+   API for our own native code) plus TanStack libraries where they pull their
+   weight (2026-07-15: explicitly allowed/encouraged — e.g. TanStack Query for
+   async reads from the store/backends). Everything else hand-rolled, same spirit
+   as the Swift app. Tooling: bun for package management, ESLint via
+   `eslint-config-expo`.
 
 ## Reality check (research findings, 2026-07)
 
@@ -140,6 +144,10 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
 1. **Scaffold** — Expo app in `app/` (TS strict, dev-client, EAS build profiles),
    empty Expo modules compiling on both platforms. Milestone: dev build runs on
    Nino's iPhone and a Xiaomi (or Android emulator).
+   *Status 2026-07-15: scaffolded and compiling locally on both platforms
+   (see CLAUDE.md for the verify commands); minSdk raised to 26 for the Health
+   Connect client. Remaining: `eas init` + first dev builds on real devices
+   (needs Nino's Expo account).*
 2. **Domain core** — catalog port, SQLite store + migrations + export. This layer is
    pure TS: unit-test it (the first real tests in this project).
 3. **UI parity** — main grid, log sheets, settings, info, charts; local-only.

@@ -6,7 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A personal multiplatform (iOS + macOS) SwiftUI app for logging symptoms and mood into Apple Health, plus stress and anxiety, with minimal friction. No dependencies; persistence is HealthKit, one `AppStorage` key, and a local JSON metric log (see `MetricStore.swift`). Open source at https://github.com/nino/health-tracker.
 
-The Swift app lives in `ios/`. A cross-platform React Native + Expo rewrite (iOS + Android, local-first, pluggable health backends, zero dependencies beyond RN/Expo) is planned — see `docs/react-native-rewrite.md`.
+The Swift app lives in `ios/`. The cross-platform React Native + Expo rewrite (iOS + Android, local-first, pluggable health backends) is underway in `app/` — see `docs/react-native-rewrite.md` for the plan and settled decisions.
+
+## React Native app (`app/`)
+
+Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `bunx expo ...`). Dependency policy: RN + Expo-curated packages + TanStack libraries only; everything else hand-rolled, including our own native health modules.
+
+- Checks (run from `app/`): `bun run test` · `bun run typecheck` · `bun run lint` · `bun run format:check` (prettier; `bun run format` to fix).
+- `bun test` runs the domain layer only — test files must not import anything that pulls in `react-native`/`expo` (bun can't apply RN's babel transforms). Component tests would need `jest-expo`; don't add it until actually needed.
+- Native code lives in local Expo modules under `app/modules/` — `health-kit` is Apple-only, `health-connect` Android-only; their JS wrappers use `requireOptionalNativeModule` and are null off-platform.
+- `app/ios` and `app/android` are prebuild output and gitignored — never edit them; changes go in `app.json`, config plugins, or the modules.
+- Native verification (from `app/`):
+  ```sh
+  bunx expo prebuild --no-install
+  (cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew assembleDebug)
+  (cd ios && pod install && xcodebuild -workspace HealthTracker.xcworkspace -scheme HealthTracker -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build)
+  ```
+- Device builds go through EAS (`eas.json`: `development` = dev client, `preview` = sideloadable APK for Android). `eas init`/`eas build` need Nino's Expo account — ask rather than run them.
 
 ## Workflow
 
