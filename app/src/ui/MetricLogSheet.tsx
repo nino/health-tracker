@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { saveEntry } from "../app/health";
 import { type Metric } from "../catalog";
+import { PlainButton, PrimaryButton } from "./Buttons";
 import { DateField } from "./DateField";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
@@ -30,8 +31,7 @@ export function MetricLogSheet(props: { metric: Metric; onClose: () => void }) {
       visible
       title={`${props.metric.icon} ${props.metric.name}`}
       onClose={props.onClose}
-      actionLabel="Save"
-      onAction={save}
+      closeLabel={null}
     >
       <View style={styles.readout}>
         <Text style={[styles.value, { color: theme.text }]}>{value}</Text>
@@ -62,6 +62,8 @@ export function MetricLogSheet(props: { metric: Metric; onClose: () => void }) {
         ))}
       </View>
       <DateField label="Date" value={date} onChange={setDate} />
+      <PrimaryButton label="Save" onPress={save} />
+      <PlainButton label="Cancel" onPress={props.onClose} />
     </SheetModal>
   );
 }

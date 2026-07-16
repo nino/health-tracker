@@ -10,16 +10,19 @@ import {
 
 import { useTheme } from "./theme";
 
-// Shared sheet shell: title bar with Cancel/action, scrollable content.
+// Shared sheet shell: title bar, scrollable content. Sheets with a primary
+// action (the log sheets) render their own Save/Cancel buttons in the
+// content and pass closeLabel={null}; passive sheets keep a header button.
 export function SheetModal(props: {
   visible: boolean;
   title: string;
   onClose: () => void;
-  actionLabel?: string;
-  onAction?: () => void;
+  /** Header close-button label; null hides the header button entirely. */
+  closeLabel?: string | null;
   children: ReactNode;
 }) {
   const theme = useTheme();
+  const closeLabel = props.closeLabel === undefined ? "Done" : props.closeLabel;
   return (
     <Modal
       visible={props.visible}
@@ -29,29 +32,19 @@ export function SheetModal(props: {
     >
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
-          <Pressable onPress={props.onClose} hitSlop={8}>
-            <Text style={[styles.headerButton, { color: theme.tint }]}>
-              Cancel
-            </Text>
-          </Pressable>
-          <Text style={[styles.title, { color: theme.text }]}>
-            {props.title}
-          </Text>
-          {props.actionLabel && props.onAction ? (
-            <Pressable onPress={props.onAction} hitSlop={8}>
-              <Text
-                style={[
-                  styles.headerButton,
-                  styles.actionButton,
-                  { color: theme.tint },
-                ]}
-              >
-                {props.actionLabel}
+          {closeLabel !== null ? (
+            <Pressable onPress={props.onClose} hitSlop={8}>
+              <Text style={[styles.headerButton, { color: theme.tint }]}>
+                {closeLabel}
               </Text>
             </Pressable>
           ) : (
             <View style={styles.headerSpacer} />
           )}
+          <Text style={[styles.title, { color: theme.text }]}>
+            {props.title}
+          </Text>
+          <View style={styles.headerSpacer} />
         </View>
         <ScrollView contentContainerStyle={styles.content}>
           {props.children}
@@ -67,13 +60,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerButton: { fontSize: 17, minWidth: 60 },
-  actionButton: { fontWeight: "600", textAlign: "right" },
   headerSpacer: { minWidth: 60 },
   title: { fontSize: 17, fontWeight: "600" },
-  content: { padding: 16, gap: 16 },
+  content: { padding: 20, paddingTop: 24, paddingBottom: 40, gap: 20 },
 });

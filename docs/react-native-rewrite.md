@@ -175,7 +175,13 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
    in Settings. Authorization sheet verified appearing in the simulator.
    Remaining: Nino grants access on his iPhone and confirms samples land in
    Apple Health.*
-5. **Health Connect backend** — when Google ships symptom/mood record types, fill in
+5. **History charts + JSON export** — *status 2026-07-16: done. Export/import
+   shipped with phase 4 (Settings). Charts: hand-rolled single-series
+   line/point charts on react-native-svg (Expo-curated), fixed y-domains,
+   mood never sharing a plot with stress/anxiety, symptom y-axis = option
+   index in display order, all reading the local store (the phase-4 backfill
+   makes HealthKit fetches unnecessary).*
+6. **Health Connect backend** — when Google ships symptom/mood record types, fill in
    the Kotlin module and flip `capabilities()`.
 
 ## Decisions (settled 2026-07-15)

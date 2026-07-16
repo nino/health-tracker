@@ -7,6 +7,7 @@ import { appDb, entryStore } from "../app/appDb";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
 import { weightedRandomByRecency } from "../lib/randomPick";
 import { getEnabledSymptomIds } from "../store/settings";
+import { HistorySheet } from "./HistorySheet";
 import { InfoSheet } from "./InfoSheet";
 import { MetricLogSheet } from "./MetricLogSheet";
 import { SettingsSheet } from "./SettingsSheet";
@@ -33,6 +34,7 @@ export function MainScreen() {
   const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
   const [showingSettings, setShowingSettings] = useState(false);
   const [showingInfo, setShowingInfo] = useState(false);
+  const [showingHistory, setShowingHistory] = useState(false);
 
   const lastDates = useQuery({
     queryKey: ["lastDates"],
@@ -63,6 +65,9 @@ export function MainScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Log Symptom</Text>
         <View style={styles.headerButtons}>
+          <Pressable onPress={() => setShowingHistory(true)} hitSlop={8}>
+            <Text style={styles.headerIcon}>📈</Text>
+          </Pressable>
           <Pressable onPress={() => setShowingInfo(true)} hitSlop={8}>
             <Text style={styles.headerIcon}>ℹ️</Text>
           </Pressable>
@@ -124,6 +129,9 @@ export function MainScreen() {
         <SettingsSheet onClose={() => setShowingSettings(false)} />
       )}
       {showingInfo && <InfoSheet onClose={() => setShowingInfo(false)} />}
+      {showingHistory && (
+        <HistorySheet onClose={() => setShowingHistory(false)} />
+      )}
     </View>
   );
 }

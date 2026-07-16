@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { saveEntry } from "../app/health";
 import { type Symptom } from "../catalog";
+import { PlainButton, PrimaryButton } from "./Buttons";
 import { DateField } from "./DateField";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
@@ -27,8 +28,7 @@ export function SymptomLogSheet(props: {
       visible
       title={`${props.symptom.icon} ${props.symptom.name}`}
       onClose={props.onClose}
-      actionLabel="Save"
-      onAction={save}
+      closeLabel={null}
     >
       <Text style={[styles.section, { color: theme.secondaryText }]}>
         {props.symptom.valueKind.sectionTitle.toUpperCase()}
@@ -59,6 +59,8 @@ export function SymptomLogSheet(props: {
         ))}
       </View>
       <DateField label="Date" value={date} onChange={setDate} />
+      <PrimaryButton label="Save" onPress={save} />
+      <PlainButton label="Cancel" onPress={props.onClose} />
     </SheetModal>
   );
 }
