@@ -34,4 +34,18 @@ describe("toLocalISOString", () => {
   test("parseISOString rejects garbage", () => {
     expect(() => parseISOString("not a date")).toThrow("Invalid ISO 8601 date");
   });
+
+  test("early years pad to four digits and still round-trip", () => {
+    const early = new Date(Date.UTC(202, 0, 15, 12, 0, 0));
+    const iso = toLocalISOString(early);
+    expect(iso).toMatch(/^0202-/);
+    expect(parseISOString(iso).getTime()).toBe(early.getTime());
+  });
+
+  test("years outside ISO 8601 throw instead of poisoning the store", () => {
+    expect(() => toLocalISOString(new Date(8.64e15))).toThrow(RangeError);
+    expect(() => toLocalISOString(new Date(Date.UTC(-1000, 0, 1)))).toThrow(
+      RangeError,
+    );
+  });
 });

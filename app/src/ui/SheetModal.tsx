@@ -1,12 +1,14 @@
 import { type ReactNode } from "react";
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "./theme";
 
@@ -22,7 +24,11 @@ export function SheetModal(props: {
   children: ReactNode;
 }) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const closeLabel = props.closeLabel === undefined ? "Done" : props.closeLabel;
+  // iOS pageSheet floats below the status bar; Android modals are
+  // edge-to-edge, so the header needs the top inset there.
+  const headerTopInset = Platform.OS === "android" ? insets.top : 0;
   return (
     <Modal
       visible={props.visible}
@@ -31,7 +37,15 @@ export function SheetModal(props: {
       onRequestClose={props.onClose}
     >
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              borderBottomColor: theme.border,
+              paddingTop: 14 + headerTopInset,
+            },
+          ]}
+        >
           {closeLabel !== null ? (
             <Pressable onPress={props.onClose} hitSlop={8}>
               <Text style={[styles.headerButton, { color: theme.tint }]}>
@@ -46,7 +60,12 @@ export function SheetModal(props: {
           </Text>
           <View style={styles.headerSpacer} />
         </View>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: 40 + insets.bottom },
+          ]}
+        >
           {props.children}
         </ScrollView>
       </View>
@@ -61,11 +80,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerButton: { fontSize: 17, minWidth: 60 },
   headerSpacer: { minWidth: 60 },
   title: { fontSize: 17, fontWeight: "600" },
-  content: { padding: 20, paddingTop: 24, paddingBottom: 40, gap: 20 },
+  content: { padding: 20, paddingTop: 24, gap: 20 },
 });

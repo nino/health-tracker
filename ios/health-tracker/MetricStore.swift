@@ -142,7 +142,16 @@ final class MetricStore {
             .appendingPathComponent("health-tracker", isDirectory: true)
             .appendingPathComponent("metric-log.json")
         if let data = try? Data(contentsOf: fileURL) {
-            entries = (try? JSONDecoder().decode([MetricEntry].self, from: data)) ?? []
+            if let decoded = try? JSONDecoder().decode([MetricEntry].self, from: data) {
+                entries = decoded
+            } else {
+                // Never keep writing over a file we couldn't read — the next
+                // persist() would silently erase it. Move it aside instead.
+                let backup = fileURL.deletingLastPathComponent()
+                    .appendingPathComponent("metric-log.corrupt-\(Int(Date().timeIntervalSince1970)).json")
+                try? FileManager.default.moveItem(at: fileURL, to: backup)
+                Perf.note("metric log undecodable; moved aside to \(backup.lastPathComponent)")
+            }
         }
         Perf.note("MetricStore loaded (\(entries.count) entries)")
     }

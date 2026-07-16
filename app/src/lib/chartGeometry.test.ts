@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { scalePoints } from "./chartGeometry";
+import { downsample, scalePoints } from "./chartGeometry";
 
 describe("scalePoints", () => {
   test("empty input stays empty", () => {
@@ -28,6 +28,17 @@ describe("scalePoints", () => {
       10,
     );
     expect(points.map((p) => p.x)).toEqual([0, 0.25, 1]);
+  });
+
+  test("downsample keeps endpoints, order, and the cap", () => {
+    const points = Array.from({ length: 5000 }, (_, i) => i);
+    const thinned = downsample(points, 400);
+    expect(thinned.length).toBe(400);
+    expect(thinned[0]).toBe(0);
+    expect(thinned[399]).toBe(4999);
+    expect([...thinned].sort((a, b) => a - b)).toEqual(thinned);
+    // Under the cap: untouched.
+    expect(downsample([1, 2, 3], 400)).toEqual([1, 2, 3]);
   });
 
   test("y respects a fixed domain and clamps out-of-domain values", () => {

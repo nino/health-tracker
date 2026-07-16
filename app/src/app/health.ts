@@ -23,10 +23,16 @@ export async function syncAtStartup(queryClient: QueryClient): Promise<void> {
     await mirrorPending(entryStore, activeBackend);
     if (imported > 0) {
       void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
+      void queryClient.invalidateQueries({ queryKey: ["entries"] });
     }
   } catch (error) {
     console.warn("health backend sync failed", error);
   }
+}
+
+/** Foreground retry: drain any entries whose mirror failed earlier. */
+export function syncOnForeground(): void {
+  void mirrorPending(entryStore, activeBackend).catch(() => {});
 }
 
 /** The one save path for the UI: local write first (source of truth), then

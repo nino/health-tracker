@@ -14,6 +14,12 @@ export function DateField(props: {
   onChange: (date: Date) => void;
 }) {
   const theme = useTheme();
+  // Android's time dialog has no maximumDate concept, so "today at a future
+  // time" slips through the date-only cap — clamp on the way out instead.
+  const changeClamped = (date: Date) => {
+    const now = new Date();
+    props.onChange(date > now ? now : date);
+  };
 
   if (Platform.OS === "ios") {
     return (
@@ -24,7 +30,7 @@ export function DateField(props: {
           mode="datetime"
           display="compact"
           maximumDate={new Date()}
-          onValueChange={(_, date) => props.onChange(date)}
+          onValueChange={(_, date) => changeClamped(date)}
         />
       </View>
     );
@@ -35,7 +41,7 @@ export function DateField(props: {
       value: props.value,
       mode,
       maximumDate: mode === "date" ? new Date() : undefined,
-      onValueChange: (_, date) => props.onChange(date),
+      onValueChange: (_, date) => changeClamped(date),
     });
   };
 

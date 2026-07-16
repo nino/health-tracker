@@ -184,6 +184,24 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
 6. **Health Connect backend** — when Google ships symptom/mood record types, fill in
    the Kotlin module and flip `capabilities()`.
 
+## Adversarial review round (2026-07-16)
+
+Three parallel adversarial reviewers audited the app (data integrity /
+lifecycle-platform / hostile input); 13 verified findings, all fixed:
+single-flight + claim-before-write mirroring (no duplicate HealthKit samples
+from concurrent runs or crashes), bounded mirror retries (entries park after
+5 failures instead of retrying forever), iOS-18 gate on mood capability,
+strict import validation (ISO-only dates in 1970–2100, per-kind value
+ranges, unknown kinds skipped+counted instead of aborting), own-export
+round-trip restored, Swift-JSON moods tagged with dual-write provenance (no
+re-mirror cascade), backfill flag keyed on kind-set and never set when
+nothing was attempted, transactional migrations, full query invalidation
+after imports, Android sheet safe-areas, Android future-time clamp,
+foreground mirror retries, chart downsampling (max 400 points), file-based
+export sharing (Android binder limit), and a move-aside guard in the Swift
+app's MetricStore so an undecodable metric-log.json is preserved instead of
+silently overwritten.
+
 ## Decisions (settled 2026-07-15)
 
 - **Bundle id**: new id, side by side with the Swift app during the transition.

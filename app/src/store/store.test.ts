@@ -92,6 +92,27 @@ describe("EntryStore", () => {
     expect(freshStore().unsynced([])).toEqual([]);
   });
 
+  test("claimed entries are invisible to unsynced until released", () => {
+    const store = freshStore();
+    const entry = store.add("mood", 5, new Date("2026-07-16T08:00:00Z"));
+    store.claimForMirror(entry.id, "healthkit");
+    expect(store.unsynced(["mood"])).toEqual([]);
+    store.releaseMirrorClaim(entry.id);
+    expect(store.unsynced(["mood"]).map((e) => e.id)).toEqual([entry.id]);
+  });
+
+  test("entries park after MAX_MIRROR_ATTEMPTS failed releases", () => {
+    const store = freshStore();
+    const entry = store.add("mood", 5, new Date("2026-07-16T08:00:00Z"));
+    for (let i = 0; i < 5; i++) {
+      store.claimForMirror(entry.id, "healthkit");
+      store.releaseMirrorClaim(entry.id);
+    }
+    expect(store.unsynced(["mood"])).toEqual([]);
+    // Still present locally for charts/recency.
+    expect(store.byKind("mood").length).toBe(1);
+  });
+
   test("import dedups within ±2s per kind, keeps everything else", () => {
     const store = freshStore();
     const base = new Date("2026-07-12T09:41:00+02:00");

@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { HealthKit, type HKCategorySample } from "../../modules/health-kit";
 import { moodRatingToValence, SYMPTOMS, valenceToMoodRating } from "../catalog";
 import { type BackendSample, type HealthBackend } from "./types";
@@ -7,12 +9,20 @@ import { type BackendSample, type HealthBackend } from "./types";
 
 const SYMPTOM_IDS = new Set(SYMPTOMS.map((s) => s.id));
 
+// State of Mind exists only on iOS 18+; claiming mood capability below that
+// would queue writes that are guaranteed to throw forever.
+const IOS_MAJOR_VERSION =
+  Platform.OS === "ios" ? parseInt(String(Platform.Version), 10) : 0;
+
 export const healthKitBackend: HealthBackend = {
   name: "healthkit",
 
   capability(kind) {
     if (!HealthKit?.isHealthDataAvailable()) return "none";
-    return SYMPTOM_IDS.has(kind) || kind === "mood" ? "read-write" : "none";
+    if (kind === "mood") {
+      return IOS_MAJOR_VERSION >= 18 ? "read-write" : "none";
+    }
+    return SYMPTOM_IDS.has(kind) ? "read-write" : "none";
   },
 
   async requestAuthorization() {
@@ -22,8 +32,11 @@ export const healthKitBackend: HealthBackend = {
   async write(kind, value, date) {
     if (!HealthKit) throw new Error("HealthKit module unavailable");
     if (kind === "mood") {
+      // Clamp defensively: HKStateOfMind raises an uncatchable
+      // NSInvalidArgumentException for valence outside [-1, 1].
+      const rating = Math.min(10, Math.max(1, value));
       return HealthKit.saveStateOfMind(
-        moodRatingToValence(value),
+        moodRatingToValence(rating),
         date.getTime(),
       );
     }

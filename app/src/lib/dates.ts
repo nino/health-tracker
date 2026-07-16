@@ -8,7 +8,14 @@ function pad(n: number): string {
 }
 
 export function toLocalISOString(date: Date): string {
-  const y = date.getFullYear();
+  const year = date.getFullYear();
+  // Years outside 1..9999 can't be represented in plain ISO 8601 and would
+  // serialize to strings parseISOString rejects — refuse loudly instead of
+  // poisoning the store (import validation rejects them much earlier).
+  if (year < 1 || year > 9999) {
+    throw new RangeError(`Date year out of ISO 8601 range: ${year}`);
+  }
+  const y = String(year).padStart(4, "0");
   const mo = pad(date.getMonth() + 1);
   const d = pad(date.getDate());
   const h = pad(date.getHours());

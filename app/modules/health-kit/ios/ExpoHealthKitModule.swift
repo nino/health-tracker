@@ -79,10 +79,12 @@ public class ExpoHealthKitModule: Module {
           name: "StateOfMindUnavailable",
           description: "State of Mind requires iOS 18")
       }
+      // Clamp: HKStateOfMind raises NSInvalidArgumentException (uncatchable
+      // from Swift) for valence outside [-1, 1].
       let sample = HKStateOfMind(
         date: Date(timeIntervalSince1970: dateMs / 1000),
         kind: .momentaryEmotion,
-        valence: valence,
+        valence: max(-1, min(1, valence)),
         labels: [],
         associations: []
       )

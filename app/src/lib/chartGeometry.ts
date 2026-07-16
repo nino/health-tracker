@@ -33,3 +33,12 @@ export function scalePoints(
 function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
+
+/** Evenly thins a series to at most `max` points, always keeping the first
+ * and last — years of backfilled history must not mount thousands of SVG
+ * nodes per chart. */
+export function downsample<T>(points: T[], max: number): T[] {
+  if (max < 2 || points.length <= max) return points;
+  const step = (points.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, i) => points[Math.round(i * step)]);
+}

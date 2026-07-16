@@ -31,6 +31,11 @@ const MIGRATIONS: string[][] = [
       value TEXT NOT NULL
     )`,
   ],
+  // v3: bounded mirror retries — entries that keep failing to reach a
+  // backend are parked after MAX_MIRROR_ATTEMPTS instead of retrying forever.
+  [
+    `ALTER TABLE entries ADD COLUMN backend_attempts INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
@@ -44,9 +49,18 @@ export function migrate(db: SqlDriver): void {
     );
   }
   for (let v = current; v < MIGRATIONS.length; v++) {
-    for (const statement of MIGRATIONS[v]) {
-      db.run(statement);
+    // One transaction per version: a crash mid-version rolls back cleanly
+    // instead of leaving half a migration that re-fails on every launch.
+    db.run("BEGIN");
+    try {
+      for (const statement of MIGRATIONS[v]) {
+        db.run(statement);
+      }
+      setUserVersion(db, v + 1);
+      db.run("COMMIT");
+    } catch (error) {
+      db.run("ROLLBACK");
+      throw error;
     }
-    setUserVersion(db, v + 1);
   }
 }

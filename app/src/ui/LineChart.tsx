@@ -2,11 +2,16 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line, Polyline } from "react-native-svg";
 
-import { scalePoints, type ChartInputPoint } from "../lib/chartGeometry";
+import {
+  downsample,
+  scalePoints,
+  type ChartInputPoint,
+} from "../lib/chartGeometry";
 import { useTheme } from "./theme";
 
 const HEIGHT = 140;
 const PAD = 8; // keeps dots at the domain edges fully visible
+const MAX_POINTS = 400;
 
 // Single-series line/point chart with a fixed y-domain (never derived from
 // the data — mood 1-10 must look like 4/10, not full-scale). Optional
@@ -20,7 +25,8 @@ export function LineChart(props: {
 }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
-  const scaled = scalePoints(props.points, props.yMin, props.yMax);
+  const points = downsample(props.points, MAX_POINTS);
+  const scaled = scalePoints(points, props.yMin, props.yMax);
 
   const px = (x: number) => PAD + x * (width - 2 * PAD);
   const py = (y: number) => PAD + (1 - y) * (HEIGHT - 2 * PAD);

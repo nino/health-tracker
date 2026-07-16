@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
-import { File } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useState } from "react";
-import { Pressable, Share, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 
 import { appDb, entryStore } from "../app/appDb";
 import { SYMPTOMS } from "../catalog";
 import { getEnabledSymptomIds, setEnabledSymptomIds } from "../store/settings";
-import { parseSwiftExport } from "../store/swiftImport";
+import { importEntriesFromJSON } from "../store/swiftImport";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
@@ -32,11 +33,17 @@ export function SettingsSheet(props: { onClose: () => void }) {
     void queryClient.invalidateQueries({ queryKey: ["enabledSymptomIds"] });
   };
 
-  const exportJSON = () => {
-    void Share.share({
-      message: entryStore.exportJSON(),
-      title: "health-tracker export",
-    });
+  // Shared as a file, not an inline string: Android's share Intent has a
+  // ~1 MB transaction limit that a few years of entries would exceed.
+  const exportJSON = async () => {
+    try {
+      const file = new File(Paths.cache, "health-tracker-export.json");
+      if (file.exists) file.delete();
+      file.write(entryStore.exportJSON());
+      await Sharing.shareAsync(file.uri, { mimeType: "application/json" });
+    } catch (error) {
+      setImportResult(`Export failed: ${String(error)}`);
+    }
   };
 
   const importJSON = async () => {
@@ -46,9 +53,17 @@ export function SettingsSheet(props: { onClose: () => void }) {
       });
       if (picked.canceled) return;
       const json = await new File(picked.assets[0].uri).text();
-      const added = entryStore.import(parseSwiftExport(json));
+      const { added, skippedUnknownKinds } = importEntriesFromJSON(
+        entryStore,
+        json,
+      );
       void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
-      setImportResult(`Imported ${added} entries.`);
+      void queryClient.invalidateQueries({ queryKey: ["entries"] });
+      setImportResult(
+        skippedUnknownKinds > 0
+          ? `Imported ${added} entries (${skippedUnknownKinds} of an unknown type skipped).`
+          : `Imported ${added} entries.`,
+      );
     } catch (error) {
       setImportResult(`Import failed: ${String(error)}`);
     }
@@ -62,7 +77,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
           { backgroundColor: theme.card, borderColor: theme.border },
         ]}
       >
-        <Pressable style={styles.row} onPress={exportJSON}>
+        <Pressable style={styles.row} onPress={() => void exportJSON()}>
           <Text style={{ color: theme.tint }}>Export data as JSON</Text>
         </Pressable>
         <Pressable

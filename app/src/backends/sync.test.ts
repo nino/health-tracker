@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 
 import { EntryStore } from "../store/entryStore";
 import { migrate } from "../store/migrations";
-import { getSetting } from "../store/settings";
 import { memoryDriver, sequentialIds } from "../store/testDriver";
 import {
   ensureAuthorization,
@@ -79,6 +78,62 @@ describe("mirrorPending", () => {
     expect(await mirrorPending(store, backend)).toBe(1);
     expect(store.byKind("mood")[0].backendId).toBe("ok-1");
   });
+
+  test("permanently failing entries park after bounded attempts", async () => {
+    const { store } = fresh();
+    let writes = 0;
+    const backend = fakeBackend({
+      write: () => {
+        writes++;
+        return Promise.reject(new Error("authorization denied"));
+      },
+    });
+    store.add("mood", 6, new Date("2026-07-16T09:00:00Z"));
+
+    for (let run = 0; run < 20; run++) {
+      await mirrorPending(store, backend);
+    }
+    // MAX_MIRROR_ATTEMPTS, not 20: the entry parks instead of retrying forever.
+    expect(writes).toBe(5);
+    // Still fully present locally.
+    expect(store.byKind("mood").length).toBe(1);
+  });
+
+  test("concurrent runs never double-write an entry (single-flight)", async () => {
+    const { store } = fresh();
+    const written: string[] = [];
+    const backend = fakeBackend({
+      write: (kind) =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            written.push(kind);
+            resolve(`id-${written.length}`);
+          }, 10);
+        }),
+    });
+    // A queued backlog...
+    store.add("mood", 5, new Date("2026-07-16T08:00:00Z"));
+    store.add("mood", 6, new Date("2026-07-16T08:10:00Z"));
+    // ...being drained while a save fires a second run mid-flight.
+    const first = mirrorPending(store, backend);
+    store.add("HKCategoryTypeIdentifierHeadache", 2, new Date());
+    const second = mirrorPending(store, backend);
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(written.length).toBe(3); // each entry exactly once
+    expect(a + b).toBe(3);
+  });
+
+  test("a crash between write and markSynced leaves a claim, not a retry", async () => {
+    const { store } = fresh();
+    const backend = fakeBackend();
+    const entry = store.add("mood", 5, new Date("2026-07-16T08:00:00Z"));
+    // Simulate the crash: the claim was taken, the process died before
+    // markSynced. On the next launch the entry must not be written again.
+    store.claimForMirror(entry.id, backend.name);
+    expect(await mirrorPending(store, backend)).toBe(0);
+    expect(backend.written.length).toBe(0);
+  });
 });
 
 describe("ensureAuthorization", () => {
@@ -108,6 +163,28 @@ describe("ensureAuthorization", () => {
     });
     await ensureAuthorization(db, backend);
     expect(requests).toBe(0);
+  });
+
+  test("swapping one kind for another re-requests (key is set-based, not count)", async () => {
+    const { db } = fresh();
+    let requests = 0;
+    const requestAuthorization = () => {
+      requests++;
+      return Promise.resolve();
+    };
+    await ensureAuthorization(db, fakeBackend({ requestAuthorization }));
+    // Same *count* of kinds, different set:
+    await ensureAuthorization(
+      db,
+      fakeBackend({
+        requestAuthorization,
+        capability: (kind) =>
+          kind === "stress" || kind === "HKCategoryTypeIdentifierHeadache"
+            ? "read-write"
+            : "none",
+      }),
+    );
+    expect(requests).toBe(2);
   });
 
   test("a failed request is retried next launch (flag not set)", async () => {
@@ -143,7 +220,10 @@ describe("importBackendHistory", () => {
     });
 
     expect(await importBackendHistory(db, store, backend)).toBe(2);
-    expect(getSetting(db, "didImportFromBackend:fake")).toBe("true");
+    const flags = db.all<{ key: string }>(
+      `SELECT key FROM settings WHERE key LIKE 'didImportFromBackend:fake%'`,
+    );
+    expect(flags.length).toBe(1);
     const moods = store.byKind("mood");
     expect(moods.length).toBe(2);
     expect(moods[0].backend).toBe("fake");
@@ -161,6 +241,22 @@ describe("importBackendHistory", () => {
     await importBackendHistory(db, store, backend);
     expect(await mirrorPending(store, backend)).toBe(0);
     expect(backend.written.length).toBe(0);
+  });
+
+  test("no flag is set while the backend supports nothing, so a later capability light-up still backfills", async () => {
+    const { db, store } = fresh();
+    const nothing = fakeBackend({
+      capability: () => "none",
+      history: () => Promise.resolve(history),
+    });
+    expect(await importBackendHistory(db, store, nothing)).toBe(0);
+
+    // Health Connect ships symptom support; same backend name, real kinds now.
+    const backend = fakeBackend({
+      name: "fake",
+      history: (kind) => Promise.resolve(kind === "mood" ? history : []),
+    });
+    expect(await importBackendHistory(db, store, backend)).toBe(2);
   });
 
   test("dual-written entries dedup against the local copy", async () => {

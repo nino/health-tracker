@@ -52,6 +52,15 @@ function rowToEntry(row: EntryRow): Entry {
 // save round-trip time.
 export const IMPORT_DEDUP_WINDOW_MS = 2000;
 
+// After this many failed mirror attempts an entry is parked (still local,
+// still charted — just no longer retried against the backend forever).
+export const MAX_MIRROR_ATTEMPTS = 5;
+
+// backend_id value while a write to the backend is in flight. A crash
+// mid-write leaves the entry claimed, which means "possibly in the backend"
+// — never retried, because a duplicate sample is worse than a missing one.
+export const MIRROR_CLAIM = "mirror-in-flight";
+
 // The source of truth for all tracked data. Writes are local-first: callers
 // insert here synchronously and mirror to a health backend afterwards
 // (markSynced records the outcome).
@@ -108,16 +117,38 @@ export class EntryStore {
     );
   }
 
-  /** Entries that should exist in a backend but were never mirrored. */
+  /** Claim an entry before the (slow, non-transactional) backend write. */
+  claimForMirror(id: string, backend: string): void {
+    this.db.run(`UPDATE entries SET backend = ?, backend_id = ? WHERE id = ?`, [
+      backend,
+      MIRROR_CLAIM,
+      id,
+    ]);
+  }
+
+  /** Release a claim after a *failed* write, counting the attempt. */
+  releaseMirrorClaim(id: string): void {
+    this.db.run(
+      `UPDATE entries
+       SET backend = NULL, backend_id = NULL,
+           backend_attempts = backend_attempts + 1
+       WHERE id = ?`,
+      [id],
+    );
+  }
+
+  /** Entries that should exist in a backend but were never mirrored —
+   * excluding in-flight claims and entries parked after repeated failures. */
   unsynced(kinds: string[]): Entry[] {
     if (kinds.length === 0) return [];
     const placeholders = kinds.map(() => "?").join(", ");
     return this.db
       .all<EntryRow>(
         `SELECT * FROM entries
-         WHERE backend IS NULL AND kind IN (${placeholders})
+         WHERE backend IS NULL AND backend_attempts < ?
+           AND kind IN (${placeholders})
          ORDER BY date_unix_ms`,
-        kinds,
+        [MAX_MIRROR_ATTEMPTS, ...kinds],
       )
       .map(rowToEntry);
   }
@@ -145,8 +176,11 @@ export class EntryStore {
   }
 
   /** Import entries from elsewhere (Swift-app JSON, HealthKit backfill),
-   * skipping any within two seconds of an existing same-kind entry so
-   * dual-written data doesn't duplicate. Returns how many were added. */
+   * skipping any within two seconds of a *pre-existing* same-kind entry so
+   * dual-written data doesn't duplicate. The snapshot is taken before the
+   * loop (matching the Swift importMood): distinct entries inside one batch
+   * that happen to be <2s apart — a log followed by a quick correction —
+   * are both kept. Returns how many were added. */
   import(
     entries: {
       kind: string;
@@ -157,18 +191,24 @@ export class EntryStore {
       backendId?: string;
     }[],
   ): number {
+    const existing = new Map<string, number[]>();
+    for (const kind of new Set(entries.map((e) => e.kind))) {
+      existing.set(
+        kind,
+        this.db
+          .all<{ date_unix_ms: number }>(
+            `SELECT date_unix_ms FROM entries WHERE kind = ?`,
+            [kind],
+          )
+          .map((r) => r.date_unix_ms),
+      );
+    }
     let added = 0;
     for (const candidate of entries) {
-      const nearby = this.db.all<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM entries
-         WHERE kind = ? AND date_unix_ms BETWEEN ? AND ?`,
-        [
-          candidate.kind,
-          candidate.date.getTime() - IMPORT_DEDUP_WINDOW_MS,
-          candidate.date.getTime() + IMPORT_DEDUP_WINDOW_MS,
-        ],
-      )[0].n;
-      if (nearby > 0) continue;
+      const nearby = (existing.get(candidate.kind) ?? []).some(
+        (t) => Math.abs(t - candidate.date.getTime()) <= IMPORT_DEDUP_WINDOW_MS,
+      );
+      if (nearby) continue;
       this.db.run(
         `INSERT INTO entries (id, kind, value, date, date_unix_ms, logged_at, backend, backend_id, backend_synced_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
