@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { appDb, entryStore } from "../app/appDb";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
+import { nextUp } from "../lib/nextUp";
 import { weightedRandomByRecency } from "../lib/randomPick";
 import { getEnabledSymptomIds } from "../store/settings";
 import { HistorySheet } from "./HistorySheet";
@@ -53,6 +54,36 @@ export function MainScreen() {
   const pickRandom = () => {
     const pick = weightedRandomByRecency(enabledSymptoms, dates);
     if (pick) setSelectedSymptom(pick);
+  };
+
+  // Grid order for Save & Next: metrics first, then enabled symptoms.
+  const gridItems: (Metric | Symptom)[] = [...METRICS, ...enabledSymptoms];
+  const currentKind = selectedMetric?.id ?? selectedSymptom?.id ?? "";
+  const nextAvailable =
+    nextUp(gridItems, currentKind, dates, now) !== undefined;
+
+  // Called by a sheet right after its Save & Next saved: advance to the next
+  // item needing logging. Reads recency fresh from the store — the query
+  // cache hasn't refetched yet at this point.
+  const advanceToNext = () => {
+    const next = nextUp(
+      gridItems,
+      currentKind,
+      entryStore.lastDates(),
+      new Date(),
+    );
+    if (!next) {
+      setSelectedMetric(null);
+      setSelectedSymptom(null);
+      return;
+    }
+    if ("valueKind" in next) {
+      setSelectedMetric(null);
+      setSelectedSymptom(next);
+    } else {
+      setSelectedSymptom(null);
+      setSelectedMetric(next);
+    }
   };
 
   return (
@@ -115,14 +146,20 @@ export function MainScreen() {
 
       {selectedSymptom && (
         <SymptomLogSheet
+          key={selectedSymptom.id}
           symptom={selectedSymptom}
           onClose={() => setSelectedSymptom(null)}
+          nextAvailable={nextAvailable}
+          onSaveAndNext={advanceToNext}
         />
       )}
       {selectedMetric && (
         <MetricLogSheet
+          key={selectedMetric.id}
           metric={selectedMetric}
           onClose={() => setSelectedMetric(null)}
+          nextAvailable={nextAvailable}
+          onSaveAndNext={advanceToNext}
         />
       )}
       {showingSettings && (

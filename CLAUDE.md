@@ -13,6 +13,7 @@ The Swift app lives in `ios/`. The cross-platform React Native + Expo rewrite (i
 Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `bunx expo ...`). Dependency policy: RN + Expo-curated packages + TanStack libraries only; everything else hand-rolled, including our own native health modules.
 
 - Checks (run from `app/`): `bun run test` · `bun run typecheck` · `bun run lint` · `bun run format:check` (prettier; `bun run format` to fix).
+- **Always `cd` into `app/` explicitly** (absolute path) before any `bun run`. From a directory without a package.json, bun falls back to PATH binaries — on this machine `bun run lint` once executed Nino's personal `~/.config/scripts/lint`, which runs `git checkout`/`git pull`/`yarn` in whatever repo it's in (2026-07-16; no damage, but only because uncommitted changes aborted the checkout).
 - `bun test` runs the domain layer only — test files must not import anything that pulls in `react-native`/`expo` (bun can't apply RN's babel transforms). Component tests would need `jest-expo`; don't add it until actually needed.
 - Native code lives in local Expo modules under `app/modules/` — `health-kit` is Apple-only, `health-connect` Android-only; their JS wrappers use `requireOptionalNativeModule` and are null off-platform.
 - `app/ios` and `app/android` are prebuild output and gitignored — never edit them; changes go in `app.json`, config plugins, or the modules.

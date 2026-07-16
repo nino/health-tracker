@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import fc from "fast-check";
+import * as fc from "fast-check";
 
 import { METRICS, SYMPTOMS, metricById, symptomById } from "../catalog";
 import { parseISOString, toLocalISOString } from "../lib/dates";
@@ -144,8 +144,9 @@ describe("fuzz: parseExport is total", () => {
     );
     // Prototype pollution stays impossible.
     parseExport('{"__proto__": {"polluted": true}, "entries": []}');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((Object.prototype as any).polluted).toBeUndefined();
+    expect(
+      (Object.prototype as unknown as Record<string, unknown>).polluted,
+    ).toBeUndefined();
   });
 });
 

@@ -18,6 +18,31 @@ export function PrimaryButton(props: { label: string; onPress: () => void }) {
   );
 }
 
+// iOS-style "tinted" button: tint at low opacity behind tinted text.
+export function TintedButton(props: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={props.onPress}
+      disabled={props.disabled}
+      style={({ pressed }) => [
+        styles.primary,
+        { backgroundColor: `${theme.tint}26` },
+        pressed && styles.pressed,
+        props.disabled && styles.disabled,
+      ]}
+    >
+      <Text style={[styles.primaryLabel, { color: theme.tint }]}>
+        {props.label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function PlainButton(props: { label: string; onPress: () => void }) {
   const theme = useTheme();
   return (
@@ -43,4 +68,5 @@ const styles = StyleSheet.create({
   plain: { alignItems: "center", paddingVertical: 8 },
   plainLabel: { fontSize: 17 },
   pressed: { opacity: 0.7 },
+  disabled: { opacity: 0.4 },
 });

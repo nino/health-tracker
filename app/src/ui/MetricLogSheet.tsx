@@ -4,12 +4,18 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { saveEntry } from "../app/health";
 import { type Metric } from "../catalog";
-import { PlainButton, PrimaryButton } from "./Buttons";
+import { PlainButton, PrimaryButton, TintedButton } from "./Buttons";
 import { DateField } from "./DateField";
+import { SaveButtonRow } from "./SaveButtonRow";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
-export function MetricLogSheet(props: { metric: Metric; onClose: () => void }) {
+export function MetricLogSheet(props: {
+  metric: Metric;
+  onClose: () => void;
+  nextAvailable: boolean;
+  onSaveAndNext: () => void;
+}) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const neutral = Math.round((props.metric.min + props.metric.max) / 2);
@@ -19,6 +25,11 @@ export function MetricLogSheet(props: { metric: Metric; onClose: () => void }) {
   const save = () => {
     saveEntry(queryClient, props.metric.id, value, date);
     props.onClose();
+  };
+
+  const saveAndNext = () => {
+    saveEntry(queryClient, props.metric.id, value, date);
+    props.onSaveAndNext();
   };
 
   const ratings = [];
@@ -62,7 +73,14 @@ export function MetricLogSheet(props: { metric: Metric; onClose: () => void }) {
         ))}
       </View>
       <DateField label="Date" value={date} onChange={setDate} />
-      <PrimaryButton label="Save" onPress={save} />
+      <SaveButtonRow>
+        <PrimaryButton label="Save" onPress={save} />
+        <TintedButton
+          label="Save & Next"
+          onPress={saveAndNext}
+          disabled={!props.nextAvailable}
+        />
+      </SaveButtonRow>
       <PlainButton label="Cancel" onPress={props.onClose} />
     </SheetModal>
   );

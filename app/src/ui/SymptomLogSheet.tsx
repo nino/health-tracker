@@ -4,14 +4,20 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { saveEntry } from "../app/health";
 import { type Symptom } from "../catalog";
-import { PlainButton, PrimaryButton } from "./Buttons";
+import { PlainButton, PrimaryButton, TintedButton } from "./Buttons";
 import { DateField } from "./DateField";
+import { SaveButtonRow } from "./SaveButtonRow";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
 export function SymptomLogSheet(props: {
   symptom: Symptom;
   onClose: () => void;
+  /** True when some other enabled item hasn't been logged in the last 10
+   * minutes — enables Save & Next. */
+  nextAvailable: boolean;
+  /** Called after a Save & Next save; the caller advances the sheet. */
+  onSaveAndNext: () => void;
 }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -21,6 +27,11 @@ export function SymptomLogSheet(props: {
   const save = () => {
     saveEntry(queryClient, props.symptom.id, value, date);
     props.onClose();
+  };
+
+  const saveAndNext = () => {
+    saveEntry(queryClient, props.symptom.id, value, date);
+    props.onSaveAndNext();
   };
 
   return (
@@ -59,7 +70,14 @@ export function SymptomLogSheet(props: {
         ))}
       </View>
       <DateField label="Date" value={date} onChange={setDate} />
-      <PrimaryButton label="Save" onPress={save} />
+      <SaveButtonRow>
+        <PrimaryButton label="Save" onPress={save} />
+        <TintedButton
+          label="Save & Next"
+          onPress={saveAndNext}
+          disabled={!props.nextAvailable}
+        />
+      </SaveButtonRow>
       <PlainButton label="Cancel" onPress={props.onClose} />
     </SheetModal>
   );
