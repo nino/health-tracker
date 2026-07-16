@@ -159,6 +159,12 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
    sort across DST boundaries.*
 3. **UI parity** — main grid, log sheets, settings, info, charts; local-only.
    Milestone: the friend can install an APK and start logging.
+   *Status 2026-07-16: done except charts (phase 5 per this plan). Main grid
+   with staleness dots + minute tick + weighted random, symptom/metric log
+   sheets with backdating (Expo's datetimepicker), settings toggles (SQLite
+   settings table, migration v2), info sheet. TanStack Query for reads with
+   invalidation on writes. Verified rendering via a Release simulator build.
+   `ios.appleTeamId` pinned so regenerated projects come out pre-signed.*
 4. **HealthKit backend** — Swift module, write-through mirroring, first-run import.
    Milestone: Nino switches daily logging to the RN app; the Swift app can be
    retired once nothing is missed.

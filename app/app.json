@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ninoan.healthtracker",
+      "appleTeamId": "62SHETTA2W",
       "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
     },
     "android": {
@@ -25,7 +26,8 @@
     "web": { "favicon": "./assets/favicon.png" },
     "plugins": [
       ["expo-build-properties", { "android": { "minSdkVersion": 26 } }],
-      "expo-sqlite"
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
     ],
     "extra": { "eas": { "projectId": "90fef081-d27b-43f6-9e91-6231cdc2df6d" } },
     "owner": "ninoan"

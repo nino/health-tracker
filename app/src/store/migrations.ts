@@ -24,6 +24,13 @@ const MIGRATIONS: string[][] = [
     )`,
     `CREATE INDEX idx_entries_kind_date ON entries(kind, date_unix_ms)`,
   ],
+  // v2: key-value settings (the AppStorage equivalent) — enabled symptoms etc.
+  [
+    `CREATE TABLE settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )`,
+  ],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
