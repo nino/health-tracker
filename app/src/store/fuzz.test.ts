@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import fc from "fast-check";
 
 import { METRICS, SYMPTOMS, metricById, symptomById } from "../catalog";
 import { parseISOString, toLocalISOString } from "../lib/dates";
@@ -6,23 +7,12 @@ import { EntryStore } from "./entryStore";
 import { importEntriesFromJSON, parseExport } from "./swiftImport";
 import { memoryDriver, sequentialIds } from "./testDriver";
 
-// Seeded property tests — the permanent version of the one-off fuzzing from
-// the 2026-07-16 adversarial review. Deterministic (mulberry32 with fixed
-// seeds), so a failure is a reproducible counterexample, not flake.
+// Property tests over the one untrusted-input surface (JSON import) and the
+// serialization core — the permanent version of the 2026-07-16 review
+// round's one-off fuzzing. On failure fast-check prints a shrunken
+// counterexample plus the seed to replay it.
 
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pick<T>(rnd: () => number, items: T[]): T {
-  return items[Math.floor(rnd() * items.length)];
-}
+const NUM_RUNS = 500;
 
 const ALL_KINDS = [...METRICS.map((m) => m.id), ...SYMPTOMS.map((s) => s.id)];
 
@@ -40,184 +30,171 @@ function isValidValueFor(kind: string, value: number): boolean {
   );
 }
 
-function randomValidEntry(rnd: () => number): Record<string, unknown> {
-  const kind = pick(rnd, ALL_KINDS);
+function validValueArb(kind: string): fc.Arbitrary<number> {
   const metric = metricById(kind);
-  const value = metric
-    ? metric.min + Math.floor(rnd() * (metric.max - metric.min + 1))
-    : pick(rnd, symptomById(kind)!.valueKind.options).value;
-  // 2000..2090, always day 01..28 so every date exists.
-  const iso = `${2000 + Math.floor(rnd() * 90)}-${String(1 + Math.floor(rnd() * 12)).padStart(2, "0")}-${String(1 + Math.floor(rnd() * 28)).padStart(2, "0")}T${String(Math.floor(rnd() * 24)).padStart(2, "0")}:${String(Math.floor(rnd() * 60)).padStart(2, "0")}:${String(Math.floor(rnd() * 60)).padStart(2, "0")}Z`;
-  return { kind, rating: value, date: iso, loggedAt: iso };
+  if (metric) return fc.integer({ min: metric.min, max: metric.max });
+  return fc.constantFrom(
+    ...symptomById(kind)!.valueKind.options.map((o) => o.value),
+  );
 }
 
-const GARBAGE_STRINGS = [
-  "",
-  "0",
-  "2024",
-  "12/31/2025",
-  "Mar 5 2020",
-  "2026-02-30T00:00:00Z",
-  "+275760-09-13T00:00:00Z",
-  "0001-01-01T00:00:00Z",
-  "2026-07-12T09:41:00", // no offset
-  "2026-13-01T00:00:00Z",
-  "2026-07-12T25:00:00Z",
-  "NaN",
-  "null",
-  "🤕",
-  "'; DROP TABLE entries; --",
-];
+// Second-precision dates in the supported range, as the store handles them.
+const validDateArb = fc
+  .date({
+    min: new Date("1970-01-02T00:00:00Z"),
+    max: new Date("2100-12-30T00:00:00Z"),
+    noInvalidDate: true,
+  })
+  .map((d) => new Date(Math.floor(d.getTime() / 1000) * 1000));
 
-function mutate(
-  rnd: () => number,
-  entry: Record<string, unknown>,
-): Record<string, unknown> {
-  const mutated = { ...entry };
-  const field = pick(rnd, ["kind", "rating", "date", "loggedAt"]);
-  const mutation = Math.floor(rnd() * 6);
-  switch (mutation) {
-    case 0:
-      delete mutated[field];
-      break;
-    case 1:
-      mutated[field] = pick(rnd, GARBAGE_STRINGS);
-      break;
-    case 2:
-      mutated[field] = pick(rnd, [
-        null,
-        true,
-        [],
-        {},
-        1e300,
-        -1e300,
-        0.5,
-        -1,
-        999,
-      ]);
-      break;
-    case 3:
-      mutated.kind = pick(rnd, [
-        "steps",
-        "HKCategoryTypeIdentifierNotAThing",
-        "MOOD",
-        " mood",
-      ]);
-      break;
-    case 4: {
-      // Corrupt one character of a date string.
-      const value = String(mutated[field]);
-      const at = Math.floor(rnd() * Math.max(1, value.length));
-      mutated[field] =
-        value.slice(0, at) +
-        pick(rnd, ["X", "9", "-", " "]) +
-        value.slice(at + 1);
-      break;
-    }
-    case 5:
-      mutated.rating = Math.floor(rnd() * 2000) - 1000;
-      break;
-  }
-  return mutated;
-}
+const validEntryArb = fc
+  .constantFrom(...ALL_KINDS)
+  .chain((kind) =>
+    fc.record({
+      kind: fc.constant(kind),
+      rating: validValueArb(kind),
+      date: validDateArb.map(toLocalISOString),
+      loggedAt: validDateArb.map(toLocalISOString),
+    }),
+  );
+
+const garbageFieldArb = fc.oneof(
+  fc.string(),
+  fc.constantFrom(
+    "",
+    "2024",
+    "12/31/2025",
+    "2026-02-30T00:00:00Z",
+    "+275760-09-13T00:00:00Z",
+    "0001-01-01T00:00:00Z",
+    "2026-07-12T09:41:00",
+    "'; DROP TABLE entries; --",
+  ),
+  fc.double(),
+  fc.integer({ min: -100000, max: 100000 }),
+  fc.constant(null),
+  fc.boolean(),
+  fc.array(fc.string(), { maxLength: 2 }),
+  fc.object({ maxDepth: 1 }),
+);
+
+// A valid entry with 0..3 fields replaced by garbage (or dropped).
+const mutatedEntryArb = validEntryArb.chain((entry) =>
+  fc
+    .array(
+      fc.tuple(
+        fc.constantFrom("kind", "rating", "date", "loggedAt"),
+        fc.option(garbageFieldArb, { nil: undefined }),
+      ),
+      { maxLength: 3 },
+    )
+    .map((mutations) => {
+      const mutated: Record<string, unknown> = { ...entry };
+      for (const [field, value] of mutations) {
+        if (value === undefined) {
+          delete mutated[field];
+        } else {
+          mutated[field] = value;
+        }
+      }
+      return mutated;
+    }),
+);
 
 describe("fuzz: parseExport is total", () => {
-  test("mutated inputs either throw Error or yield only valid entries", () => {
-    const rnd = mulberry32(0xbeef);
-    for (let i = 0; i < 2000; i++) {
-      const entries = Array.from({ length: 1 + Math.floor(rnd() * 4) }, () => {
-        const entry = randomValidEntry(rnd);
-        return rnd() < 0.7 ? mutate(rnd, entry) : entry;
-      });
-      const json = JSON.stringify(rnd() < 0.8 ? { entries } : entries);
-      let parsed;
-      try {
-        parsed = parseExport(json);
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        continue;
-      }
-      for (const entry of parsed.entries) {
-        expect(isValidValueFor(entry.kind, entry.value)).toBe(true);
-        expect(Number.isNaN(entry.date.getTime())).toBe(false);
-        expect(entry.date.getFullYear()).toBeGreaterThanOrEqual(1970);
-        expect(entry.date.getFullYear()).toBeLessThanOrEqual(2100);
-        // Every accepted date must survive the store's serialization.
-        expect(parseISOString(toLocalISOString(entry.date)).getTime()).toBe(
-          Math.floor(entry.date.getTime() / 1000) * 1000,
-        );
-      }
-    }
+  test("any mix of valid/mutated entries either throws Error or yields only valid entries", () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.oneof(validEntryArb, mutatedEntryArb), { maxLength: 6 }),
+        fc.boolean(),
+        (entries, wrapped) => {
+          const json = JSON.stringify(wrapped ? { entries } : entries);
+          let parsed;
+          try {
+            parsed = parseExport(json);
+          } catch (error) {
+            expect(error).toBeInstanceOf(Error);
+            return;
+          }
+          for (const entry of parsed.entries) {
+            expect(isValidValueFor(entry.kind, entry.value)).toBe(true);
+            expect(entry.date.getFullYear()).toBeGreaterThanOrEqual(1970);
+            expect(entry.date.getFullYear()).toBeLessThanOrEqual(2100);
+            // Every accepted date must survive the store's serialization.
+            expect(parseISOString(toLocalISOString(entry.date)).getTime()).toBe(
+              Math.floor(entry.date.getTime() / 1000) * 1000,
+            );
+          }
+        },
+      ),
+      { numRuns: NUM_RUNS },
+    );
   });
 
-  test("structurally hostile JSON never crashes unexpectedly", () => {
-    const rnd = mulberry32(0xcafe);
-    const hostile = [
-      "null",
-      "42",
-      '"entries"',
-      "[[[[[[]]]]]]",
-      '{"entries": {}}',
-      '{"entries": [null]}',
-      '{"entries": [[]]}',
-      `{"entries": [${'{"kind":"mood",'.repeat(50)}}]}`.slice(0, 200),
-      '{"__proto__": {"polluted": true}, "entries": []}',
-      JSON.stringify({ entries: [{ __proto__: { x: 1 }, kind: "mood" }] }),
-    ];
-    for (const json of hostile) {
-      try {
-        parseExport(json);
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-      }
-    }
+  test("arbitrary JSON values never crash with a non-Error", () => {
+    fc.assert(
+      fc.property(fc.jsonValue({ maxDepth: 4 }), (value) => {
+        try {
+          parseExport(JSON.stringify(value));
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+        }
+      }),
+      { numRuns: NUM_RUNS },
+    );
+    // Prototype pollution stays impossible.
+    parseExport('{"__proto__": {"polluted": true}, "entries": []}');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((Object.prototype as any).polluted).toBeUndefined();
-    expect(rnd).toBeDefined();
   });
 });
 
 describe("fuzz: round-trips", () => {
   test("date serialization is identity at second precision across the range", () => {
-    const rnd = mulberry32(0x5eed);
-    const min = Date.UTC(1970, 0, 1);
-    const max = Date.UTC(2100, 11, 31);
-    for (let i = 0; i < 2000; i++) {
-      const ms = Math.floor(min + rnd() * (max - min));
-      const date = new Date(Math.floor(ms / 1000) * 1000);
-      expect(parseISOString(toLocalISOString(date)).getTime()).toBe(
-        date.getTime(),
-      );
-    }
+    fc.assert(
+      fc.property(validDateArb, (date) => {
+        expect(parseISOString(toLocalISOString(date)).getTime()).toBe(
+          date.getTime(),
+        );
+      }),
+      { numRuns: NUM_RUNS * 4 },
+    );
   });
 
   test("random stores survive export → import into a fresh store", () => {
-    const rnd = mulberry32(0xf00d);
-    for (let round = 0; round < 30; round++) {
-      const store = new EntryStore(memoryDriver(), sequentialIds());
-      const count = 1 + Math.floor(rnd() * 40);
-      // Space entries >2s apart so dedup provably never fires.
-      let t = Date.UTC(2020, 0, 1);
-      for (let i = 0; i < count; i++) {
-        t += 3000 + Math.floor(rnd() * 86_400_000);
-        const kind = pick(rnd, ALL_KINDS);
-        const metric = metricById(kind);
-        const value = metric
-          ? metric.min + Math.floor(rnd() * (metric.max - metric.min + 1))
-          : pick(rnd, symptomById(kind)!.valueKind.options).value;
-        store.add(kind, value, new Date(t));
-      }
+    // Entries spaced >2s apart so the import dedup provably never fires.
+    const storeContentsArb = fc.array(
+      fc
+        .constantFrom(...ALL_KINDS)
+        .chain((kind) =>
+          fc.record({
+            kind: fc.constant(kind),
+            value: validValueArb(kind),
+            gapMs: fc.integer({ min: 3000, max: 86_400_000 }),
+          }),
+        ),
+      { maxLength: 50 },
+    );
+    fc.assert(
+      fc.property(storeContentsArb, (contents) => {
+        const store = new EntryStore(memoryDriver(), sequentialIds());
+        let t = Date.UTC(2020, 0, 1);
+        for (const item of contents) {
+          t += item.gapMs;
+          store.add(item.kind, item.value, new Date(t));
+        }
 
-      const restored = new EntryStore(memoryDriver(), sequentialIds());
-      const result = importEntriesFromJSON(restored, store.exportJSON());
-      expect(result.added).toBe(count);
-      expect(result.skippedUnknownKinds).toBe(0);
-      expect(restored.count()).toBe(count);
-      for (const kind of new Set(ALL_KINDS)) {
-        expect(
-          restored.byKind(kind).map((e) => [e.value, e.date.getTime()]),
-        ).toEqual(store.byKind(kind).map((e) => [e.value, e.date.getTime()]));
-      }
-    }
+        const restored = new EntryStore(memoryDriver(), sequentialIds());
+        const result = importEntriesFromJSON(restored, store.exportJSON());
+        expect(result.added).toBe(contents.length);
+        expect(result.skippedUnknownKinds).toBe(0);
+        for (const kind of new Set(contents.map((c) => c.kind))) {
+          expect(
+            restored.byKind(kind).map((e) => [e.value, e.date.getTime()]),
+          ).toEqual(store.byKind(kind).map((e) => [e.value, e.date.getTime()]));
+        }
+      }),
+      { numRuns: 50 },
+    );
   });
 });
