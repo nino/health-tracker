@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { entryStore } from "../app/appDb";
+import { saveEntry } from "../app/health";
 import { type Metric } from "../catalog";
 import { DateField } from "./DateField";
 import { SheetModal } from "./SheetModal";
@@ -16,8 +16,7 @@ export function MetricLogSheet(props: { metric: Metric; onClose: () => void }) {
   const [date, setDate] = useState(() => new Date());
 
   const save = () => {
-    entryStore.add(props.metric.id, value, date);
-    void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
+    saveEntry(queryClient, props.metric.id, value, date);
     props.onClose();
   };
 

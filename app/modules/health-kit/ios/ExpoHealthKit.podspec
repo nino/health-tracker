@@ -1,13 +1,12 @@
 Pod::Spec.new do |s|
   s.name           = 'ExpoHealthKit'
   s.version        = '1.0.0'
-  s.summary        = 'A sample project summary'
-  s.description    = 'A sample project description'
+  s.summary        = 'HealthKit bindings for health-tracker'
+  s.description    = 'The exact HealthKit surface health-tracker needs: authorization, category samples, and State of Mind.'
   s.author         = ''
   s.homepage       = 'https://docs.expo.dev/modules/'
   s.platforms      = {
-    :ios => '16.4',
-    :tvos => '16.4'
+    :ios => '16.4'
   }
   s.source         = { git: '' }
   s.static_framework = true

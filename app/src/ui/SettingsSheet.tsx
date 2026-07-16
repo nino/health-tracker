@@ -1,15 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { StyleSheet, Switch, Text, View } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import { File } from "expo-file-system";
+import { useState } from "react";
+import { Pressable, Share, StyleSheet, Switch, Text, View } from "react-native";
 
-import { appDb } from "../app/appDb";
+import { appDb, entryStore } from "../app/appDb";
 import { SYMPTOMS } from "../catalog";
 import { getEnabledSymptomIds, setEnabledSymptomIds } from "../store/settings";
+import { parseSwiftExport } from "../store/swiftImport";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
 export function SettingsSheet(props: { onClose: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const [importResult, setImportResult] = useState<string | null>(null);
   const enabled = useQuery({
     queryKey: ["enabledSymptomIds"],
     queryFn: () => getEnabledSymptomIds(appDb),
@@ -27,8 +32,59 @@ export function SettingsSheet(props: { onClose: () => void }) {
     void queryClient.invalidateQueries({ queryKey: ["enabledSymptomIds"] });
   };
 
+  const exportJSON = () => {
+    void Share.share({
+      message: entryStore.exportJSON(),
+      title: "health-tracker export",
+    });
+  };
+
+  const importJSON = async () => {
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: "application/json",
+      });
+      if (picked.canceled) return;
+      const json = await new File(picked.assets[0].uri).text();
+      const added = entryStore.import(parseSwiftExport(json));
+      void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
+      setImportResult(`Imported ${added} entries.`);
+    } catch (error) {
+      setImportResult(`Import failed: ${String(error)}`);
+    }
+  };
+
   return (
-    <SheetModal visible title="Symptoms" onClose={props.onClose}>
+    <SheetModal visible title="Settings" onClose={props.onClose}>
+      <View
+        style={[
+          styles.list,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
+        <Pressable style={styles.row} onPress={exportJSON}>
+          <Text style={{ color: theme.tint }}>Export data as JSON</Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.row,
+            {
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: theme.border,
+            },
+          ]}
+          onPress={() => void importJSON()}
+        >
+          <Text style={{ color: theme.tint }}>
+            Import metric-log JSON (from the Swift app)
+          </Text>
+        </Pressable>
+      </View>
+      {importResult && (
+        <Text style={[styles.hint, { color: theme.secondaryText }]}>
+          {importResult}
+        </Text>
+      )}
       <Text style={[styles.hint, { color: theme.secondaryText }]}>
         Enabled symptoms appear on the main screen.
       </Text>

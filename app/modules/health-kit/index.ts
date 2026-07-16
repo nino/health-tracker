@@ -1,1 +1,5 @@
-export { HealthKit } from "./src/ExpoHealthKitModule";
+export {
+  HealthKit,
+  type HKCategorySample,
+  type HKStateOfMindSample,
+} from "./src/ExpoHealthKitModule";

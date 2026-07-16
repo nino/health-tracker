@@ -11,7 +11,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ninoan.healthtracker",
       "appleTeamId": "62SHETTA2W",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "entitlements": { "com.apple.developer.healthkit": true },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSHealthShareUsageDescription": "Reads your existing symptom and State of Mind history so past entries appear in the app.",
+        "NSHealthUpdateUsageDescription": "Saves the symptoms and mood you log to Apple Health."
+      }
     },
     "android": {
       "package": "com.ninoan.healthtracker",

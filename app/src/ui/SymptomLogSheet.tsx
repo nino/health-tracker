@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { entryStore } from "../app/appDb";
+import { saveEntry } from "../app/health";
 import { type Symptom } from "../catalog";
 import { DateField } from "./DateField";
 import { SheetModal } from "./SheetModal";
@@ -18,8 +18,7 @@ export function SymptomLogSheet(props: {
   const [date, setDate] = useState(() => new Date());
 
   const save = () => {
-    entryStore.add(props.symptom.id, value, date);
-    void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
+    saveEntry(queryClient, props.symptom.id, value, date);
     props.onClose();
   };
 

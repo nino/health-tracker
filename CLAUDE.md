@@ -20,9 +20,11 @@ Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `
   ```sh
   bunx expo prebuild --no-install
   (cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew assembleDebug)
-  (cd ios && pod install && xcodebuild -workspace HealthTracker.xcworkspace -scheme HealthTracker -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build)
+  (cd ios && pod install && xcodebuild -workspace HealthTracker.xcworkspace -scheme HealthTracker -destination 'generic/platform=iOS Simulator' build)
   ```
-- Device builds go through EAS (`eas.json`: `development` = dev client, `preview` = sideloadable APK for Android). `eas init`/`eas build` need Nino's Expo account — ask rather than run them.
+- Device builds go through EAS (`eas.json`: `development` = dev client, `preview` = sideloadable APK for Android). EAS is logged in as ninoan (`~/.bun/bin/eas`); ask before production/submit actions.
+- Never pass `CODE_SIGNING_ALLOWED=NO` to the RN app's simulator builds: it strips the HealthKit entitlement, and HealthKit then **hangs silently** on `requestAuthorization` instead of erroring (cost: a long debugging session on 2026-07-16). That flag is only for the macOS build of the Swift app. Simulator builds sign automatically.
+- HealthKit's authorization sheet requires the request to be made from the main thread — the Expo module dispatches internally via `Task { @MainActor ... }`; keep it that way. The `statusForAuthorizationRequest` gate the Swift app uses hangs on simulators; the RN app gates with a local settings flag instead (`didRequestAuth:*`).
 
 ## Workflow
 

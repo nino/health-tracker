@@ -168,6 +168,13 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
 4. **HealthKit backend** — Swift module, write-through mirroring, first-run import.
    Milestone: Nino switches daily logging to the RN app; the Swift app can be
    retired once nothing is missed.
+   *Status 2026-07-16: implemented — full HealthKit module (auth, category
+   samples, State of Mind, history reads), HealthBackend abstraction with
+   write-through mirroring + retry queue, once-ever auth gating via settings
+   flag, one-time HealthKit backfill, Swift metric-log JSON import + export
+   in Settings. Authorization sheet verified appearing in the simulator.
+   Remaining: Nino grants access on his iPhone and confirms samples land in
+   Apple Health.*
 5. **Health Connect backend** — when Google ships symptom/mood record types, fill in
    the Kotlin module and flip `capabilities()`.
 
