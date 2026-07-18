@@ -89,14 +89,9 @@ export function MetricLogSheet(props: {
 const styles = StyleSheet.create({
   readout: { alignItems: "center", gap: 4 },
   value: { fontSize: 44, fontWeight: "700" },
-  ratingRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    justifyContent: "center",
-  },
+  ratingRow: { flexDirection: "row", gap: 4 },
   rating: {
-    width: 52,
+    flex: 1,
     height: 44,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
