@@ -14,7 +14,6 @@ export interface ValueKind {
   name: ValueKindName;
   /** Picker options in display order (charts use the index as the y-axis). */
   options: SymptomOption[];
-  defaultValue: number;
   sectionTitle: string;
 }
 
@@ -29,7 +28,6 @@ const severity: ValueKind = {
     { label: "Moderate", value: 3 },
     { label: "Severe", value: 4 },
   ],
-  defaultValue: 0,
   sectionTitle: "Severity",
 };
 
@@ -40,7 +38,6 @@ const presence: ValueKind = {
     { label: "Not Present", value: 1 },
     { label: "Present", value: 0 },
   ],
-  defaultValue: 0,
   sectionTitle: "Status",
 };
 
@@ -52,7 +49,6 @@ const appetite: ValueKind = {
     { label: "Decreased", value: 2 },
     { label: "Increased", value: 3 },
   ],
-  defaultValue: 1,
   sectionTitle: "Change",
 };
 

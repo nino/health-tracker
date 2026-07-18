@@ -66,17 +66,14 @@ describe("value kinds (raw values verified against HKCategoryValues.h)", () => {
     ]);
     // "Present" maps to Unspecified (0), not a presence value.
     expect(VALUE_KINDS.severity.options[1].label).toBe("Present");
-    expect(VALUE_KINDS.severity.defaultValue).toBe(0);
   });
 
   test("presence options carry HKCategoryValuePresence raw values", () => {
     expect(VALUE_KINDS.presence.options.map((o) => o.value)).toEqual([1, 0]);
-    expect(VALUE_KINDS.presence.defaultValue).toBe(0);
   });
 
   test("appetite options carry HKCategoryValueAppetiteChanges raw values", () => {
     expect(VALUE_KINDS.appetite.options.map((o) => o.value)).toEqual([1, 2, 3]);
-    expect(VALUE_KINDS.appetite.defaultValue).toBe(1);
   });
 });
 
