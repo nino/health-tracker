@@ -21,15 +21,17 @@ export function SymptomLogSheet(props: {
 }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const [value, setValue] = useState(props.symptom.valueKind.defaultValue);
+  const [value, setValue] = useState<number | null>(null);
   const [date, setDate] = useState(() => new Date());
 
   const save = () => {
+    if (value == null) return;
     saveEntry(queryClient, props.symptom.id, value, date);
     props.onClose();
   };
 
   const saveAndNext = () => {
+    if (value == null) return;
     saveEntry(queryClient, props.symptom.id, value, date);
     props.onSaveAndNext();
   };
@@ -71,11 +73,11 @@ export function SymptomLogSheet(props: {
       </View>
       <DateField label="Date" value={date} onChange={setDate} />
       <SaveButtonRow>
-        <PrimaryButton label="Save" onPress={save} />
+        <PrimaryButton label="Save" onPress={save} disabled={value == null} />
         <TintedButton
           label="Save & Next"
           onPress={saveAndNext}
-          disabled={!props.nextAvailable}
+          disabled={value == null || !props.nextAvailable}
         />
       </SaveButtonRow>
       <PlainButton label="Cancel" onPress={props.onClose} />
