@@ -18,16 +18,17 @@ export function MetricLogSheet(props: {
 }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const neutral = Math.round((props.metric.min + props.metric.max) / 2);
-  const [value, setValue] = useState(neutral);
+  const [value, setValue] = useState<number | null>(null);
   const [date, setDate] = useState(() => new Date());
 
   const save = () => {
+    if (value == null) return;
     saveEntry(queryClient, props.metric.id, value, date);
     props.onClose();
   };
 
   const saveAndNext = () => {
+    if (value == null) return;
     saveEntry(queryClient, props.metric.id, value, date);
     props.onSaveAndNext();
   };
@@ -45,9 +46,11 @@ export function MetricLogSheet(props: {
       closeLabel={null}
     >
       <View style={styles.readout}>
-        <Text style={[styles.value, { color: theme.text }]}>{value}</Text>
+        <Text style={[styles.value, { color: theme.text }]}>
+          {value ?? "–"}
+        </Text>
         <Text style={{ color: theme.secondaryText }}>
-          {props.metric.describe(value)}
+          {value == null ? "Select a value" : props.metric.describe(value)}
         </Text>
       </View>
       <View style={styles.ratingRow}>
@@ -74,11 +77,11 @@ export function MetricLogSheet(props: {
       </View>
       <DateField label="Date" value={date} onChange={setDate} />
       <SaveButtonRow>
-        <PrimaryButton label="Save" onPress={save} />
+        <PrimaryButton label="Save" onPress={save} disabled={value == null} />
         <TintedButton
           label="Save & Next"
           onPress={saveAndNext}
-          disabled={!props.nextAvailable}
+          disabled={value == null || !props.nextAvailable}
         />
       </SaveButtonRow>
       <PlainButton label="Cancel" onPress={props.onClose} />

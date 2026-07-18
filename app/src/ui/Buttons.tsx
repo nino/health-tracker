@@ -2,15 +2,21 @@ import { Pressable, StyleSheet, Text } from "react-native";
 
 import { useTheme } from "./theme";
 
-export function PrimaryButton(props: { label: string; onPress: () => void }) {
+export function PrimaryButton(props: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={props.onPress}
+      disabled={props.disabled}
       style={({ pressed }) => [
         styles.primary,
         { backgroundColor: theme.tint },
         pressed && styles.pressed,
+        props.disabled && styles.disabled,
       ]}
     >
       <Text style={styles.primaryLabel}>{props.label}</Text>
