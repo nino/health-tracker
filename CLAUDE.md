@@ -31,6 +31,15 @@ Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `
 ## Workflow
 
 - Push to `origin main` immediately after every commit (Nino's standing instruction).
+- **PR descriptions include screenshots** of any visible change (Nino's rule, 2026-07-28). Capture them from a real running app — a simulator/emulator locally, or the web screenshot harness (below) in remote containers — commit them to `docs/screenshots/`, and embed them with URLs pinned to a commit. Filenames must be unique per capture (`<date>-<short-sha>-<label>.png`, done by `capture.ts` automatically) — never reuse a name like `screenshot.png`, or the PR's image link silently shows whatever the file becomes later.
+
+## Web screenshot harness
+
+Web is **not a shipping target**; it exists so screenshots can be captured headlessly. From `app/`: `bunx expo export --platform web`, then `bun scripts/screenshots/capture.ts` (serves `dist/` itself, seeds ~10 weeks of demo data through the real Settings import, writes phone-sized shots to `docs/screenshots/`). Chromium is at `/opt/pw-browsers/chromium` in remote containers (`CHROMIUM_PATH` to override). Load-bearing pieces, all documented in-file:
+
+- `index.web.ts` warms expo-sqlite's wasm worker asynchronously before mounting; `src/app/appDb.ts` opens the database lazily on first use. Both exist because expo-sqlite's synchronous web API waits on its worker with a *bounded* spin and throws (`Sync operation timeout`) if called before the worker is up — and a blocking retry can't recover, because the worker's startup is itself queued behind the blocked main thread.
+- `metro.config.js` registers `.wasm` as an asset and serves COOP/COEP headers (the sync API needs SharedArrayBuffer, which needs cross-origin isolation; `capture.ts` sets the same headers).
+- `patches/expo-sqlite@57.0.1.patch` fixes an upstream web bug: the sync channel wrote the result length via `Uint8Array.set(new Uint32Array([length]))`, which coerces to a single byte, truncating every result over 255 bytes to `length % 256` (reads worked only for tiny results). Worth upstreaming; re-check when bumping expo-sqlite.
 
 ## Architecture
 
