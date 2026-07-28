@@ -49,7 +49,8 @@ statuses and library facts were verified on that date.
 ## Repo layout
 
 ```
-ios/        the existing Swift app (kept building until the RN app reaches parity)
+ios/        the existing Swift app (kept building until the RN app reaches parity;
+            deleted 2026-07-28 — references to ios/ paths below are historical)
 app/        the Expo app (new)
   src/
     catalog/     symptom + metric definitions (port of Symptom.swift / MetricKind)
@@ -175,6 +176,8 @@ First-run import, iOS only, mirroring the existing one-time mood import pattern:
    in Settings. Authorization sheet verified appearing in the simulator.
    Remaining: Nino grants access on his iPhone and confirms samples land in
    Apple Health.*
+   *Status 2026-07-28: the Swift app is retired — `ios/` deleted from the repo
+   (issue #2).*
 5. **History charts + JSON export** — *status 2026-07-16: done. Export/import
    shipped with phase 4 (Settings). Charts: hand-rolled single-series
    line/point charts on react-native-svg (Expo-curated), fixed y-domains,
