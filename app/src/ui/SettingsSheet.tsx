@@ -52,7 +52,12 @@ export function SettingsSheet(props: { onClose: () => void }) {
         type: "application/json",
       });
       if (picked.canceled) return;
-      const json = await new File(picked.assets[0].uri).text();
+      // On web (the PR-screenshot harness) the asset carries a browser File;
+      // expo-file-system can't read blob: URIs there.
+      const asset = picked.assets[0];
+      const json = asset.file
+        ? await asset.file.text()
+        : await new File(asset.uri).text();
       const { added, skippedUnknownKinds } = importEntriesFromJSON(
         entryStore,
         json,

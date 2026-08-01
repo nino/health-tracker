@@ -1,40 +1,31 @@
 # health-tracker
 
-A small SwiftUI app for logging symptoms and mood into Apple Health as fast as possible. One multiplatform target that runs on both iPhone and Mac — the point is quick entry from whichever device is in front of you, with the data landing in HealthKit where it belongs.
+A React Native + Expo app (iOS + Android) for logging symptoms, mood, stress, and anxiety as fast as possible. Local-first: all tracked data lives in an in-app SQLite store the app owns; OS health stores (Apple HealthKit today, Android Health Connect when it grows symptom/mood record types) are sync targets, not the source of truth.
+
+The app lives in `app/`. It began as a rewrite of a SwiftUI app — see `docs/react-native-rewrite.md` for the plan, research, and settled decisions; the original Swift app was removed once the RN app reached parity.
 
 ## Features
 
-- **One-tap symptom buttons** — the main screen is a two-column grid of buttons for the symptoms you actually track.
-- **All 39 HealthKit symptom types** — choose which appear on the main screen via the gear icon. Toggles are persisted in `AppStorage`; six sensible defaults are enabled out of the box (headache, nausea, fatigue, runny nose, sore throat, congestion).
-- **Correct value types per symptom** — most symptoms use HealthKit's severity scale (Not Present / Present / Mild / Moderate / Severe); Mood Changes and Sleep Changes use presence; Appetite Changes uses No Change / Decreased / Increased.
-- **Mood logging** — a 1–10 slider saved via the State of Mind API (`HKStateOfMind`, momentary emotion), mapped linearly to valence −1…+1 with 5.5 as neutral.
-- **Random button** — picks a symptom to log, weighted toward the ones logged least recently. It queries HealthKit for each enabled symptom's most recent sample; weights run linearly from 1x (newest) to 3x (oldest), with never-logged symptoms counting as oldest. A nudge toward even coverage, not a guarantee.
-- **Backdating** — every log sheet has an editable date/time, so you can enter something you forgot earlier.
-- **Last-logged timestamps** — each button shows how long ago that symptom (or mood) was last logged (e.g. "4h"), color-coded by staleness: neutral under 2 hours, green 2–4h, yellow 4–8h, orange 8–24h, red beyond a day or never logged.
+- **One-tap logging buttons** — the main screen is a grid of buttons for mood/stress/anxiety plus the symptoms you actually track, chosen in settings.
+- **All 39 HealthKit symptom types** — with correct value semantics per symptom: most use the severity scale (Not Present / Present / Mild / Moderate / Severe); Mood Changes and Sleep Changes use presence; Appetite Changes uses No Change / Decreased / Increased.
+- **Metrics** — mood on a 1–10 scale (mirrored to Apple Health as State of Mind), stress and anxiety on 0–10 (no HealthKit equivalent; local only).
+- **Local-first store** — every entry is saved to SQLite first and never blocked on a health backend; HealthKit mirroring happens write-through with a retry queue. JSON export/import in settings.
+- **Backdating** — every log sheet has an editable date/time.
+- **Last-logged recency** — each button shows how long ago that item was logged, color-coded by staleness, plus a weighted-random "next up" nudge toward the least recently logged items.
+- **History charts** — hand-rolled single-series line charts of everything you track.
 
-## Requirements
+## Development
 
-- Xcode with the iOS/macOS 26.5 SDKs (the target's minimum deployment is iOS 26.5 / macOS 26.5).
-- An Apple Developer account — HealthKit requires the app to be signed with the HealthKit entitlement.
-- On macOS, Health data is only available if iCloud Health sync is enabled; otherwise the app will tell you health data isn't available.
+Requires [bun](https://bun.sh). From `app/`:
 
-## Setup
+```sh
+bun install
+bun run test        # domain-layer tests (bun test)
+bun run typecheck
+bun run lint
+bun run format:check
+```
 
-1. Open `ios/health-tracker.xcodeproj` in Xcode.
-2. In the target's Signing & Capabilities, select your own development team if Xcode doesn't do it automatically.
-3. Pick an iPhone or Mac run destination and hit Run.
-4. On first launch the app requests HealthKit authorization for all symptom types and State of Mind up front — grant what you want to log. (Asking for everything once means enabling a new symptom later doesn't trigger another prompt.)
+The health backends are our own local Expo modules under `app/modules/` (Swift for HealthKit, Kotlin for Health Connect), so the app needs a dev build — Expo Go can't run it. `bunx expo prebuild` generates the native projects; device builds go through EAS. HealthKit requires the app to be signed with the HealthKit entitlement (Apple Developer account).
 
-Note: HealthKit reports "no data" and "read access denied" identically, so if you deny read access the Random button's recency weighting just treats those symptoms as never logged.
-
-## Architecture
-
-Plain SwiftUI, no dependencies. Everything lives in `ios/health-tracker/`:
-
-- `ContentView.swift` — main screen: mood button, enabled symptom buttons, Random button, gear icon for settings. Requests HealthKit authorization on appear and presents the log sheets.
-- `Symptom.swift` — the model: the full catalog of 39 HealthKit symptom types with names/icons, their value kinds (severity / presence / appetite) and picker options, the enabled-set encoding for `AppStorage`, and the recency-weighted random pick.
-- `HealthKitManager.swift` — the only file that talks to HealthKit: authorization, saving category samples and State of Mind samples, and fetching each symptom's most recent sample date for the Random weighting.
-- `SymptomLogView.swift` — sheet for logging one symptom: value picker, date/time, save.
-- `MoodLogView.swift` — sheet for logging mood: 1–10 slider with label/color feedback, date/time, save.
-- `SettingsView.swift` — toggle list of all symptoms controlling what shows on the main screen.
-- `InfoView.swift` — the info-button sheet explaining how the app works, including the staleness color legend.
+Dependency policy: React Native + Expo-curated packages + TanStack libraries only; everything else is hand-rolled, including the native health modules.

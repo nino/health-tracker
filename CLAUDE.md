@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A personal multiplatform (iOS + macOS) SwiftUI app for logging symptoms and mood into Apple Health, plus stress and anxiety, with minimal friction. No dependencies; persistence is HealthKit, one `AppStorage` key, and a local JSON metric log (see `MetricStore.swift`). Open source at https://github.com/nino/health-tracker.
+A personal React Native + Expo app (iOS + Android) for logging symptoms, mood, stress, and anxiety with minimal friction. Local-first: the in-app SQLite store is the source of truth; health backends (Apple HealthKit today, Android Health Connect once it has symptom/mood record types) are pluggable sync targets. Open source at https://github.com/nino/health-tracker.
 
-The Swift app lives in `ios/`. The cross-platform React Native + Expo rewrite (iOS + Android, local-first, pluggable health backends) is underway in `app/` — see `docs/react-native-rewrite.md` for the plan and settled decisions.
+The app lives in `app/` — see `docs/react-native-rewrite.md` for the plan, research findings, and settled decisions. The original SwiftUI app it replaced was deleted 2026-07-28 (its HealthKit knowledge is preserved below and in the `health-kit` Expo module, which ports its `HealthKitManager`).
 
-## React Native app (`app/`)
+## The app (`app/`)
 
 Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `bunx expo ...`). Dependency policy: RN + Expo-curated packages + TanStack libraries only; everything else hand-rolled, including our own native health modules.
 
@@ -24,47 +24,39 @@ Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `
   (cd ios && pod install && xcodebuild -workspace HealthTracker.xcworkspace -scheme HealthTracker -destination 'generic/platform=iOS Simulator' build)
   ```
 - Device builds go through EAS (`eas.json`: `development` = dev client, `preview` = sideloadable APK for Android). EAS is logged in as ninoan (`~/.bun/bin/eas`); ask before production/submit actions.
-- Never pass `CODE_SIGNING_ALLOWED=NO` to the RN app's simulator builds: it strips the HealthKit entitlement, and HealthKit then **hangs silently** on `requestAuthorization` instead of erroring (cost: a long debugging session on 2026-07-16). That flag is only for the macOS build of the Swift app. Simulator builds sign automatically.
-- HealthKit's authorization sheet requires the request to be made from the main thread — the Expo module dispatches internally via `Task { @MainActor ... }`; keep it that way. The `statusForAuthorizationRequest` gate the Swift app uses hangs on simulators; the RN app gates with a local settings flag instead (`didRequestAuth:*`).
+- Never pass `CODE_SIGNING_ALLOWED=NO` to simulator builds: it strips the HealthKit entitlement, and HealthKit then **hangs silently** on `requestAuthorization` instead of erroring (cost: a long debugging session on 2026-07-16). Simulator builds sign automatically.
+- HealthKit's authorization sheet requires the request to be made from the main thread — the Expo module dispatches internally via `Task { @MainActor ... }`; keep it that way. Gating on `statusForAuthorizationRequest` hangs on simulators (the old Swift app hit this); the app gates with a local settings flag instead (`didRequestAuth:*`).
+- On-device behavior (HealthKit prompts, real authorization sheets) can only be tested by Nino on his iPhone — ask rather than assume.
 
 ## Workflow
 
 - Push to `origin main` immediately after every commit (Nino's standing instruction).
-- Verify changes by building **both** platforms:
-  ```sh
-  xcodebuild -project ios/health-tracker.xcodeproj -scheme health-tracker -destination 'generic/platform=iOS Simulator' build
-  xcodebuild -project ios/health-tracker.xcodeproj -scheme health-tracker -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
-  ```
-  `CODE_SIGNING_ALLOWED=NO` is needed for macOS because CLI builds can't do the interactive Apple ID signing; real signed runs happen through the Xcode UI. On-device behavior (HealthKit prompts, launch performance) can only be tested by Nino on his iPhone — ask rather than assume.
-- `health-trackerTests`/`health-trackerUITests` are untouched Xcode template stubs; there is no meaningful test suite. (`xcodebuild test -project ios/health-tracker.xcodeproj -scheme health-tracker -destination 'platform=iOS Simulator,name=iPhone 17'` would run them.)
-- Ignore SourceKit diagnostics like "Cannot find 'Symptom' in scope" that appear after edits — they are stale-index noise in this project. Trust `xcodebuild` output only.
-- The app target uses a filesystem-synchronized group: any file added under `ios/health-tracker/` is automatically part of the target, no pbxproj edit needed.
+- **PR descriptions include screenshots** of any visible change (Nino's rule, 2026-07-28). Capture them from a real running app — a simulator/emulator locally, or the web screenshot harness (below) in remote containers — commit them to `docs/screenshots/`, and embed them with URLs pinned to a commit. Filenames must be unique per capture (`<date>-<short-sha>-<label>.png`, done by `capture.ts` automatically) — never reuse a name like `screenshot.png`, or the PR's image link silently shows whatever the file becomes later.
+
+## Web screenshot harness
+
+Web is **not a shipping target**; it exists so screenshots can be captured headlessly. From `app/`: `bunx expo export --platform web`, then `bun scripts/screenshots/capture.ts` (serves `dist/` itself, seeds ~10 weeks of demo data through the real Settings import, writes phone-sized shots to `docs/screenshots/`). Chromium is at `/opt/pw-browsers/chromium` in remote containers (`CHROMIUM_PATH` to override). Load-bearing pieces, all documented in-file:
+
+- `index.web.ts` warms expo-sqlite's wasm worker asynchronously before mounting; `src/app/appDb.ts` opens the database lazily on first use. Both exist because expo-sqlite's synchronous web API waits on its worker with a *bounded* spin and throws (`Sync operation timeout`) if called before the worker is up — and a blocking retry can't recover, because the worker's startup is itself queued behind the blocked main thread.
+- `metro.config.js` registers `.wasm` as an asset and serves COOP/COEP headers (the sync API needs SharedArrayBuffer, which needs cross-origin isolation; `capture.ts` sets the same headers).
+- `patches/expo-sqlite@57.0.1.patch` fixes an upstream web bug: the sync channel wrote the result length via `Uint8Array.set(new Uint32Array([length]))`, which coerces to a single byte, truncating every result over 255 bytes to `length % 256` (reads worked only for tiny results). Worth upstreaming; re-check when bumping expo-sqlite.
 
 ## Architecture
 
 The design goal is zero duplication when adding symptom types — one symptom is one line of code.
 
-- `Symptom.swift` — the heart of the app: a data-driven catalog (`Symptom.all`) of all 39 HealthKit symptom category types, each with a name, SF Symbol, `HKCategoryTypeIdentifier`, and a `ValueKind` (severity / presence / appetite) that supplies the picker options, default value, and section title. Everything else (main-screen buttons, settings toggles, authorization set, log sheet) derives from this list. Also holds the enabled-set codec for `AppStorage` and the recency-weighted random pick.
-- `HealthKitManager.swift` — the only file that touches HealthKit: authorization, saving category samples and State of Mind, and fetching last-logged dates.
-- `MetricStore.swift` — `MetricKind` (mood/stress/anxiety) plus the local JSON store (`Application Support/health-tracker/metric-log.json`). Exists because Apple Health's XML export omits State of Mind, and stress/anxiety have no HealthKit type. Mood is dual-written (HealthKit + store); entries keep the user-set `date` and a `loggedAt` timestamp, serialized as ISO 8601 with local UTC offset. SettingsView exports the store as JSON via `fileExporter`. Mood entries predating the store were back-imported from HealthKit once (flag `didImportHealthKitMood` in AppStorage; valence→rating is exact because the mapping is linear; ±2s dedup against dual-written entries; imports use the sample date as `loggedAt`).
-- `ContentView.swift` — main grid (Mood/Stress/Anxiety + enabled symptoms + Random), owns the last-logged dates state, refreshes it when any sheet dismisses, re-renders every minute via `TimelineView` so relative ages/staleness colors stay current. Symptom recency comes from HealthKit; mood/stress/anxiety recency from the local store (deliberately NOT HealthKit — cold-start State of Mind queries were part of the launch lag, and it misses nothing unless mood was logged from outside this app).
-- `SymptomLogView.swift` / `MetricLogView.swift` / `SettingsView.swift` / `InfoView.swift` / `MetricHistoryView.swift` — one sheet each; all generic over the catalog (or over `MetricKind`), none hardcodes a symptom. The history sheet charts MetricStore entries and enabled symptoms with Swift Charts (one single-series chart each — mood's high-is-good must not share a plot with stress/anxiety's high-is-bad; fixed y-domain from `metric.range`). Symptom histories are fetched from HealthKit on sheet-open, never at launch; their y-axis is the index into `valueKind.options` (display order), because raw HealthKit values don't sort (Present = 0, Not Present = 1).
-- Enabled symptoms live in `@AppStorage("enabledSymptomIDs")` as comma-joined sorted identifier rawValues; ContentView and SettingsView share the key, so toggles update the main screen automatically.
-
-## Concurrency (the big trap)
-
-The project builds with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` **and** `SWIFT_APPROACHABLE_CONCURRENCY = YES` (NonisolatedNonsendingByDefault). Consequences:
-
-- Everything, including `nonisolated async` functions and task-group children created from main-actor code, runs on the **main actor by default**. `await` alone does not move work off the main thread; a fan-out of async HealthKit queries once froze scrolling because all children inherited the main actor.
-- To actually run on a background thread, mark the function `@concurrent nonisolated` (see `HealthKitManager.lastLoggedDates`/`lastMoodDate`). Task-group children inherit that context.
-- Value types whose conformances are used off the main actor must be declared `nonisolated` (`Symptom`, `SymptomOption` are — e.g. their `Hashable` is used inside `@concurrent` code).
+- `src/catalog/` — the heart of the app: a data-driven catalog of all 39 HealthKit symptom category types (name, emoji icon, `hkIdentifier`, a `ValueKind` — severity / presence / appetite — supplying picker options and section title) plus the three metrics (mood/stress/anxiety with their ranges). Everything else (main-screen grid, settings toggles, log sheets, charts) derives from it.
+- `src/store/` — the SQLite source of truth: `EntryStore` on a `SqlDriver` interface (expo-sqlite in the app, bun:sqlite in tests), `PRAGMA user_version` migrations, settings table, JSON export, Swift-app-export import with ±2s dedup. Ordering/range queries use a `date_unix_ms` column because local-offset ISO strings don't sort across DST boundaries.
+- `src/backends/` — the `HealthBackend` abstraction and write-through mirroring: entries insert locally first (never blocked on a backend), then mirror with single-flight claim-before-write and bounded retries. `healthKitBackend` talks to the `health-kit` module; `healthConnectBackend` is scaffolding until Google ships symptom record types.
+- `src/ui/` — one screen plus RN modal sheets, no navigation library. Main grid shows staleness-colored recency (re-rendered on a minute tick) and a weighted-random "next up" nudge; recency reads the local store only — no health-store queries at launch. History charts are hand-rolled on react-native-svg: one single-series chart per item (mood's high-is-good must not share a plot with stress/anxiety's high-is-bad), fixed y-domains, symptom y-axis = index into `valueKind.options` (display order), because raw HealthKit values don't sort (Present = 0, Not Present = 1); downsampled to ≤400 points.
+- `src/lib/` — pure helpers (dates, staleness, chart geometry, random pick), all unit-tested.
+- Timestamps serialize as ISO 8601 with local UTC offset (`src/lib/dates.ts`), the same convention as the old Swift app's metric log, so old exports stay importable.
 
 ## HealthKit specifics
 
 - Value semantics were verified against the SDK header (`HKTypeIdentifiers.h` via `xcrun --sdk iphonesimulator --show-sdk-path`), not from memory — do the same before adding/changing category types. Of the 39 symptom types, all use `HKCategoryValueSeverity` except: `appetiteChanges` (`HKCategoryValueAppetiteChanges`) and `moodChanges`/`sleepChanges` (`HKCategoryValuePresence`).
 - The UI's "Present" option maps to `HKCategoryValueSeverity.unspecified` (raw 0), not a presence value.
-- Mood is saved as `HKStateOfMind` (kind `.momentaryEmotion`); the 1–10 rating maps linearly to valence via `(rating − 5.5) / 4.5`. Stress/anxiety use 0–10 (a real zero for "none") — the different ranges are intentional.
-- Authorization is requested for **all** symptom types plus State of Mind up front, so enabling a symptom later never re-prompts. Adding a new read/share type will trigger one new permission prompt on next launch — mention that to Nino when it happens.
-- HealthKit reports "read access denied" identically to "no data"; the UI treats both as never logged. Don't try to distinguish them.
-- Launch performance is a settled investigation (2026-07-12): the app's HealthKit launch footprint is one authorization status check plus limit-1 queries for the enabled symptoms, throttled to 4 in-flight at utility priority (`Perf.swift` logs each phase — console filter "perf"). Residual jank on the first launch right after an install is post-reinstall system work (healthd cold caches, binary verification), confirmed by testing: launches not preceded by a reinstall are smooth. Don't re-chase it; do preserve the cheap-launch properties (no full-type authorization requests per launch, no State of Mind queries, no all-39 fan-outs).
-- Recency queries sort by `endDate` (the user-set sample date), so backdated entries are handled correctly.
+- Mood is saved as `HKStateOfMind` (kind `.momentaryEmotion`); the 1–10 rating maps linearly to valence via `(rating − 5.5) / 4.5`. Stress/anxiety use 0–10 (a real zero for "none") — the different ranges are intentional. Mood mirroring requires iOS 18+.
+- Authorization is requested for **all** symptom types plus State of Mind up front (once ever, gated by the settings flag), so enabling a symptom later never re-prompts. Adding a new read/share type will trigger one new permission prompt — mention that to Nino when it happens.
+- HealthKit reports "read access denied" identically to "no data"; treat both as never logged. Don't try to distinguish them.
+- Recency and history are read from the local store, not HealthKit — preserve that cheap-launch property (no health-store queries at launch). Recency sorts by the user-set entry date, so backdated entries are handled correctly.
