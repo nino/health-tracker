@@ -8,6 +8,8 @@ export interface Entry {
   id: string;
   kind: string;
   value: number;
+  /** Free text — quick-note entries (kind "note") only, null elsewhere. */
+  valueText: string | null;
   /** The user-set sample date (may be backdated). */
   date: Date;
   /** When the entry was actually saved — lets analysis down-weight fuzzy
@@ -24,6 +26,7 @@ interface EntryRow {
   id: string;
   kind: string;
   value: number;
+  value_text: string | null;
   date: string;
   logged_at: string;
   backend: string | null;
@@ -36,6 +39,7 @@ function rowToEntry(row: EntryRow): Entry {
     id: row.id,
     kind: row.kind,
     value: row.value,
+    valueText: row.value_text,
     date: parseISOString(row.date),
     loggedAt: parseISOString(row.logged_at),
     backend: row.backend,
@@ -79,11 +83,13 @@ export class EntryStore {
     value: number,
     date: Date,
     loggedAt: Date = new Date(),
+    valueText: string | null = null,
   ): Entry {
     const entry: Entry = {
       id: this.newId(),
       kind,
       value,
+      valueText,
       date,
       loggedAt,
       backend: null,
@@ -91,12 +97,13 @@ export class EntryStore {
       backendSyncedAt: null,
     };
     this.db.run(
-      `INSERT INTO entries (id, kind, value, date, date_unix_ms, logged_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO entries (id, kind, value, value_text, date, date_unix_ms, logged_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         entry.id,
         entry.kind,
         entry.value,
+        entry.valueText,
         toLocalISOString(entry.date),
         entry.date.getTime(),
         toLocalISOString(entry.loggedAt),
@@ -185,6 +192,7 @@ export class EntryStore {
     entries: {
       kind: string;
       value: number;
+      valueText?: string;
       date: Date;
       loggedAt?: Date;
       backend?: string;
@@ -210,12 +218,13 @@ export class EntryStore {
       );
       if (nearby) continue;
       this.db.run(
-        `INSERT INTO entries (id, kind, value, date, date_unix_ms, logged_at, backend, backend_id, backend_synced_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO entries (id, kind, value, value_text, date, date_unix_ms, logged_at, backend, backend_id, backend_synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           this.newId(),
           candidate.kind,
           candidate.value,
+          candidate.valueText ?? null,
           toLocalISOString(candidate.date),
           candidate.date.getTime(),
           // Original logging time is often unrecoverable for imports; the
@@ -242,6 +251,7 @@ export class EntryStore {
         id: row.id,
         kind: row.kind,
         rating: row.value,
+        ...(row.value_text === null ? {} : { text: row.value_text }),
         date: row.date,
         loggedAt: row.logged_at,
       }));

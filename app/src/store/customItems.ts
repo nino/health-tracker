@@ -8,9 +8,11 @@ import { type SqlDriver } from "./driver";
 // catalog only).
 
 /** "severity" reuses the built-in symptom picker/charts; "rating" is a 1–10
- * scale like the metrics. The kind is fixed after creation — changing it
- * would silently redefine what stored values mean. */
-export type CustomItemKind = "severity" | "rating";
+ * scale like the metrics; "event" is a bare "it happened" log (value always
+ * 1, charted as weekly counts, excluded from next-up). The kind is fixed
+ * after creation — changing it would silently redefine what stored values
+ * mean. */
+export type CustomItemKind = "severity" | "rating" | "event";
 
 export interface CustomItem {
   id: string;

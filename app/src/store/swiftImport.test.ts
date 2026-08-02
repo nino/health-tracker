@@ -351,6 +351,72 @@ describe("custom items in exports", () => {
     ).toThrow(/out-of-range/);
   });
 
+  test("events and notes round-trip; their values validate", () => {
+    const EVENT_ID = "33333333-3333-3333-3333-333333333333";
+    const eventExport = JSON.stringify({
+      entries: [
+        {
+          kind: `custom:${EVENT_ID}`,
+          rating: 1,
+          date: "2026-07-20T10:00:00+02:00",
+          loggedAt: "2026-07-20T10:00:00+02:00",
+        },
+        {
+          kind: "note",
+          rating: 0,
+          text: "hit my head",
+          date: "2026-07-21T10:00:00+02:00",
+          loggedAt: "2026-07-21T10:00:00+02:00",
+        },
+      ],
+      customItems: [
+        {
+          id: EVENT_ID,
+          name: "Flossed",
+          icon: "🦷",
+          kind: "event",
+          highIsGood: false,
+          createdAt: "2026-07-19T09:00:00+02:00",
+          archivedAt: null,
+        },
+      ],
+    });
+    const { store, db } = freshStore();
+    const result = importEntriesFromJSON(store, db, eventExport);
+    expect(result.added).toBe(2);
+    expect(listCustomItems(db)[0].kind).toBe("event");
+    expect(store.byKind("note")[0].valueText).toBe("hit my head");
+
+    // Round-trips through this app's own export.
+    const restored = freshStore();
+    expect(
+      importEntriesFromJSON(restored.store, restored.db, store.exportJSON())
+        .added,
+    ).toBe(2);
+
+    // An event value other than 1 is invalid; a note needs text and value 0.
+    const withEntry = (entry: Record<string, unknown>) =>
+      JSON.stringify({
+        entries: [
+          {
+            date: "2026-07-20T10:00:00+02:00",
+            loggedAt: "2026-07-20T10:00:00+02:00",
+            ...entry,
+          },
+        ],
+        customItems: JSON.parse(eventExport).customItems,
+      });
+    expect(() =>
+      parseExport(withEntry({ kind: `custom:${EVENT_ID}`, rating: 3 })),
+    ).toThrow(/invalid event value/);
+    expect(() => parseExport(withEntry({ kind: "note", rating: 0 }))).toThrow(
+      /note without text/,
+    );
+    expect(() =>
+      parseExport(withEntry({ kind: "note", rating: 5, text: "x" })),
+    ).toThrow(/non-zero note value/);
+  });
+
   test("malformed custom items abort loudly", () => {
     expect(() =>
       parseExport(

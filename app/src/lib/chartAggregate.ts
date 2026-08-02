@@ -43,3 +43,30 @@ function bucketStart(date: Date, mode: "day" | "week"): Date {
   }
   return start;
 }
+
+/** Occurrences per local week (Monday-start) for event items, from the
+ * first entry's week through `now`'s week. Empty weeks are filled with 0 —
+ * for "flossed", the gap weeks are the interesting ones. Stepping by
+ * calendar days (not fixed 7×24h) keeps week starts aligned across DST. */
+export function weeklyCounts(dates: Date[], now: Date): ChartInputPoint[] {
+  if (dates.length === 0) return [];
+  const counts = new Map<number, number>();
+  for (const date of dates) {
+    const key = bucketStart(date, "week").getTime();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const first = new Date(Math.min(...counts.keys()));
+  const last = bucketStart(now, "week");
+  const points: ChartInputPoint[] = [];
+  for (
+    const week = new Date(first);
+    week.getTime() <= last.getTime();
+    week.setDate(week.getDate() + 7)
+  ) {
+    points.push({
+      date: new Date(week),
+      value: counts.get(week.getTime()) ?? 0,
+    });
+  }
+  return points;
+}

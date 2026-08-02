@@ -143,7 +143,11 @@ export function SettingsSheet(props: { onClose: () => void }) {
               {item.name}
             </Text>
             <Text style={{ color: theme.secondaryText }}>
-              {item.kind === "severity" ? "Severity" : "1–10"}
+              {item.kind === "severity"
+                ? "Severity"
+                : item.kind === "rating"
+                  ? "1–10"
+                  : "Event"}
             </Text>
           </Pressable>
         ))}

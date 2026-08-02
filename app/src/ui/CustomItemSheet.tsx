@@ -20,7 +20,14 @@ import { useTheme } from "./theme";
 const KIND_SEGMENTS: readonly { id: CustomItemKind; label: string }[] = [
   { id: "severity", label: "Severity" },
   { id: "rating", label: "1–10 Rating" },
+  { id: "event", label: "Event" },
 ];
+
+const KIND_DESCRIPTIONS: Record<CustomItemKind, string> = {
+  severity: "Severity item — logged like a symptom.",
+  rating: "1–10 rating item.",
+  event: "Event item — one tap logs “it happened”.",
+};
 
 /** Create or edit a custom item. The kind is fixed after creation — stored
  * values would silently change meaning. Deleting is archival only. */
@@ -122,10 +129,8 @@ export function CustomItemSheet(props: {
         />
       ) : (
         <Text style={[styles.hint, { color: theme.secondaryText }]}>
-          {props.item.kind === "severity"
-            ? "Severity item — logged like a symptom."
-            : "1–10 rating item."}{" "}
-          The kind can&apos;t change after creation.
+          {KIND_DESCRIPTIONS[props.item.kind]} The kind can&apos;t change after
+          creation.
         </Text>
       )}
 

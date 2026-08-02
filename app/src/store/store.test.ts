@@ -46,9 +46,11 @@ describe("migrations", () => {
     insert("a0", "anxiety", 0);
     // Severity/presence "Present" is raw value 0 — v4 must not touch it.
     insert("h0", "HKCategoryTypeIdentifierHeadache", 0);
-    // Rewind to v3: later migrations (v5's CREATE TABLE) must be dropped
-    // first or the replay would collide with their previous run.
+    // Rewind to v3: later migrations (v5's CREATE TABLE, v6's ADD COLUMN)
+    // must be undone first or the replay would collide with their previous
+    // run.
     db.run("DROP TABLE custom_items");
+    db.run("ALTER TABLE entries DROP COLUMN value_text");
     setUserVersion(db, 3);
 
     migrate(db);
@@ -78,6 +80,39 @@ describe("EntryStore", () => {
     expect(entries[0].date.getTime()).toBe(date.getTime());
     expect(entries[0].loggedAt.getTime()).toBe(loggedAt.getTime());
     expect(entries[0].backend).toBeNull();
+    expect(entries[0].valueText).toBeNull();
+  });
+
+  test("note entries round-trip their text through add, export, and import", () => {
+    const store = freshStore();
+    store.add(
+      "note",
+      0,
+      new Date("2026-07-12T09:41:00+02:00"),
+      new Date("2026-07-12T09:41:00+02:00"),
+      "hit my head on the counter",
+    );
+    expect(store.byKind("note")[0].valueText).toBe(
+      "hit my head on the counter",
+    );
+
+    const exported = JSON.parse(store.exportJSON()) as {
+      entries: { kind: string; text?: string }[];
+    };
+    expect(exported.entries[0].text).toBe("hit my head on the counter");
+
+    const restored = freshStore();
+    restored.import([
+      {
+        kind: "note",
+        value: 0,
+        valueText: "hit my head on the counter",
+        date: new Date("2026-07-12T09:41:00+02:00"),
+      },
+    ]);
+    expect(restored.byKind("note")[0].valueText).toBe(
+      "hit my head on the counter",
+    );
   });
 
   test("byKind returns oldest first and only the requested kind", () => {

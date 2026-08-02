@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { aggregatePoints } from "./chartAggregate";
+import { aggregatePoints, weeklyCounts } from "./chartAggregate";
 
 // Local-time constructors throughout — bucketing is by local calendar.
 // 2026-07-27 is a Monday.
@@ -50,5 +50,33 @@ describe("aggregatePoints", () => {
     expect(aggregatePoints([], "raw")).toEqual([]);
     expect(aggregatePoints([], "day")).toEqual([]);
     expect(aggregatePoints([], "week")).toEqual([]);
+  });
+});
+
+describe("weeklyCounts", () => {
+  const day = (d: number, hour = 12) => new Date(2026, 6, d, hour);
+
+  test("counts occurrences per Monday-start week", () => {
+    // Weeks: Jul 6, Jul 13, Jul 20 (now = Jul 22).
+    const result = weeklyCounts(
+      [day(6), day(7), day(12, 23), day(21)],
+      day(22),
+    );
+    expect(result).toEqual([
+      { date: new Date(2026, 6, 6), value: 3 },
+      { date: new Date(2026, 6, 13), value: 0 },
+      { date: new Date(2026, 6, 20), value: 1 },
+    ]);
+  });
+
+  test("fills empty weeks through to now — the gaps are the signal", () => {
+    const result = weeklyCounts([day(1)], day(29));
+    // Jun 29 week through Jul 27 week: five weeks, one occurrence.
+    expect(result.map((p) => p.value)).toEqual([1, 0, 0, 0, 0]);
+    expect(result.every((p) => p.date.getDay() === 1)).toBe(true);
+  });
+
+  test("empty input stays empty", () => {
+    expect(weeklyCounts([], day(22))).toEqual([]);
   });
 });

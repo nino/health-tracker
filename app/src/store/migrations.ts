@@ -56,6 +56,8 @@ const MIGRATIONS: string[][] = [
       archived_at TEXT
     )`,
   ],
+  // v6: free text for quick-note entries (kind "note"); null everywhere else.
+  [`ALTER TABLE entries ADD COLUMN value_text TEXT`],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
