@@ -95,9 +95,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
           ]}
           onPress={() => void importJSON()}
         >
-          <Text style={{ color: theme.tint }}>
-            Import metric-log JSON (from the Swift app)
-          </Text>
+          <Text style={{ color: theme.tint }}>Import JSON data</Text>
         </Pressable>
       </View>
       {importResult && (

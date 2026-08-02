@@ -28,6 +28,38 @@ describe("migrations", () => {
     setUserVersion(db, SCHEMA_VERSION + 1);
     expect(() => migrate(db)).toThrow(/newer than this app/);
   });
+
+  test("v4 folds stress/anxiety zeros into 1 and touches nothing else", () => {
+    const db = memoryDriver();
+    migrate(db);
+    // Simulate a pre-v4 database: rows written under the old 0–10 scale.
+    // The v4 UPDATE is schema-compatible with v3, so rewinding user_version
+    // and re-running migrate exercises exactly that migration.
+    const insert = (id: string, kind: string, value: number) =>
+      db.run(
+        `INSERT INTO entries (id, kind, value, date, date_unix_ms, logged_at)
+         VALUES (?, ?, ?, '2026-07-01T10:00:00+02:00', 0, '2026-07-01T10:00:00+02:00')`,
+        [id, kind, value],
+      );
+    insert("s0", "stress", 0);
+    insert("s3", "stress", 3);
+    insert("a0", "anxiety", 0);
+    // Severity/presence "Present" is raw value 0 — v4 must not touch it.
+    insert("h0", "HKCategoryTypeIdentifierHeadache", 0);
+    setUserVersion(db, 3);
+
+    migrate(db);
+
+    const values = new Map(
+      db
+        .all<{ id: string; value: number }>("SELECT id, value FROM entries")
+        .map((row) => [row.id, row.value]),
+    );
+    expect(values.get("s0")).toBe(1);
+    expect(values.get("s3")).toBe(3);
+    expect(values.get("a0")).toBe(1);
+    expect(values.get("h0")).toBe(0);
+  });
 });
 
 describe("EntryStore", () => {

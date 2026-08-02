@@ -99,6 +99,24 @@ describe("parseExport", () => {
     expect(parsed.skippedUnknownKinds).toBe(1);
   });
 
+  test("folds pre-v4 stress/anxiety zeros into 1, mood zero still rejects", () => {
+    // The SWIFT_EXPORT fixture predates the 1–10 stress/anxiety scale.
+    const parsed = parseExport(SWIFT_EXPORT);
+    expect(parsed.entries[1].kind).toBe("anxiety");
+    expect(parsed.entries[1].value).toBe(1);
+    expect(
+      parseExport(entryJSON({ kind: "stress", rating: 0 })).entries[0].value,
+    ).toBe(1);
+    // Mood never had a zero; it stays an error, as does symptom "Present" (0)
+    // staying untouched.
+    expect(() => parseExport(entryJSON({ rating: 0 }))).toThrow(/out-of-range/);
+    expect(
+      parseExport(
+        entryJSON({ kind: "HKCategoryTypeIdentifierHeadache", rating: 0 }),
+      ).entries[0].value,
+    ).toBe(0);
+  });
+
   test("rejects out-of-range and non-option values", () => {
     expect(() => parseExport(entryJSON({ rating: 999 }))).toThrow(
       /out-of-range/,

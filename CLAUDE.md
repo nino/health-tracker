@@ -56,7 +56,7 @@ The design goal is zero duplication when adding symptom types — one symptom is
 
 - Value semantics were verified against the SDK header (`HKTypeIdentifiers.h` via `xcrun --sdk iphonesimulator --show-sdk-path`), not from memory — do the same before adding/changing category types. Of the 39 symptom types, all use `HKCategoryValueSeverity` except: `appetiteChanges` (`HKCategoryValueAppetiteChanges`) and `moodChanges`/`sleepChanges` (`HKCategoryValuePresence`).
 - The UI's "Present" option maps to `HKCategoryValueSeverity.unspecified` (raw 0), not a presence value.
-- Mood is saved as `HKStateOfMind` (kind `.momentaryEmotion`); the 1–10 rating maps linearly to valence via `(rating − 5.5) / 4.5`. Stress/anxiety use 0–10 (a real zero for "none") — the different ranges are intentional. Mood mirroring requires iOS 18+.
+- Mood is saved as `HKStateOfMind` (kind `.momentaryEmotion`); the 1–10 rating maps linearly to valence via `(rating − 5.5) / 4.5`. Stress/anxiety are also 1–10 (1 = "none") since schema v4; they were 0–10 before, and the v4 migration plus the JSON import fold old zeros into 1. Mood mirroring requires iOS 18+.
 - Authorization is requested for **all** symptom types plus State of Mind up front (once ever, gated by the settings flag), so enabling a symptom later never re-prompts. Adding a new read/share type will trigger one new permission prompt — mention that to Nino when it happens.
 - HealthKit reports "read access denied" identically to "no data"; treat both as never logged. Don't try to distinguish them.
 - Recency and history are read from the local store, not HealthKit — preserve that cheap-launch property (no health-store queries at launch). Recency sorts by the user-set entry date, so backdated entries are handled correctly.

@@ -78,11 +78,9 @@ describe("value kinds (raw values verified against HKCategoryValues.h)", () => {
 });
 
 describe("metrics", () => {
-  test("mood is 1-10, stress/anxiety are 0-10", () => {
-    expect(metricById("mood")?.min).toBe(1);
-    expect(metricById("stress")?.min).toBe(0);
-    expect(metricById("anxiety")?.min).toBe(0);
+  test("all metrics are 1-10", () => {
     for (const m of METRICS) {
+      expect(m.min).toBe(1);
       expect(m.max).toBe(10);
     }
   });
@@ -99,7 +97,8 @@ describe("metrics", () => {
   test("describe covers the whole range", () => {
     expect(metricById("mood")?.describe(1)).toBe("Very Negative");
     expect(metricById("mood")?.describe(10)).toBe("Very Positive");
-    expect(metricById("stress")?.describe(0)).toBe("None");
+    expect(metricById("stress")?.describe(1)).toBe("None");
+    expect(metricById("stress")?.describe(2)).toBe("Minimal");
     expect(metricById("stress")?.describe(10)).toBe("Extreme");
   });
 });

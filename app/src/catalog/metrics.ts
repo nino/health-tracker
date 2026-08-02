@@ -8,8 +8,9 @@ export interface Metric {
   id: MetricId;
   name: string;
   icon: string;
-  /** Mood keeps the established 1–10 scale (5.5 = neutral valence in Apple
-   * Health); stress and anxiety are 0–10 so "none at all" is a real value. */
+  /** All metrics are 1–10 (mood: 5.5 = neutral valence in Apple Health;
+   * stress/anxiety: 1 = "none"). Stress/anxiety were 0–10 before schema v4 —
+   * that migration and the JSON import fold old zeros into 1. */
   min: number;
   max: number;
   describe: (value: number) => string;
@@ -24,11 +25,11 @@ function describeMood(value: number): string {
 }
 
 function describeLoad(value: number): string {
-  if (value === 0) return "None";
-  if (value <= 2) return "Minimal";
-  if (value <= 4) return "Mild";
-  if (value <= 6) return "Moderate";
-  if (value <= 8) return "High";
+  if (value === 1) return "None";
+  if (value <= 3) return "Minimal";
+  if (value <= 5) return "Mild";
+  if (value <= 7) return "Moderate";
+  if (value <= 9) return "High";
   return "Extreme";
 }
 
@@ -45,7 +46,7 @@ export const METRICS: Metric[] = [
     id: "stress",
     name: "Stress",
     icon: "😬",
-    min: 0,
+    min: 1,
     max: 10,
     describe: describeLoad,
   },
@@ -53,7 +54,7 @@ export const METRICS: Metric[] = [
     id: "anxiety",
     name: "Anxiety",
     icon: "😰",
-    min: 0,
+    min: 1,
     max: 10,
     describe: describeLoad,
   },

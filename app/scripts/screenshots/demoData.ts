@@ -49,11 +49,11 @@ export function generateDemoExport(): string {
     if (rand() < 0.6) {
       add("mood", clamp(1, 10, 6 + 2 * wave + (rand() - 0.5) * 4), day, 20);
     }
-    add("stress", clamp(0, 10, 4 - 2 * wave + (rand() - 0.5) * 5), day, 12);
+    add("stress", clamp(1, 10, 4 - 2 * wave + (rand() - 0.5) * 5), day, 12);
     if (rand() < 0.5) {
-      add("stress", clamp(0, 10, 4 - 2 * wave + (rand() - 0.5) * 5), day, 18);
+      add("stress", clamp(1, 10, 4 - 2 * wave + (rand() - 0.5) * 5), day, 18);
     }
-    add("anxiety", clamp(0, 10, 3 - wave + (rand() - 0.5) * 4), day, 15);
+    add("anxiety", clamp(1, 10, 3 - wave + (rand() - 0.5) * 4), day, 15);
     // Severity raw values: 1 notPresent, 2 mild, 3 moderate, 4 severe.
     if (rand() < 0.8) {
       const severities = [1, 1, 2, 2, 2, 3, 3, 4];
