@@ -3,13 +3,16 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { appDb, entryStore } from "../app/appDb";
+import { entryStore } from "../app/appDb";
+import {
+  customItemsOptions,
+  enabledSymptomIdsOptions,
+  lastDatesOptions,
+} from "../app/queries";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
 import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
 import { nextUp } from "../lib/nextUp";
 import { weightedRandomByRecency } from "../lib/randomPick";
-import { listCustomItems } from "../store/customItems";
-import { getEnabledSymptomIds } from "../store/settings";
 import { HistorySheet } from "./HistorySheet";
 import { InfoSheet } from "./InfoSheet";
 import { MetricLogSheet } from "./MetricLogSheet";
@@ -39,18 +42,9 @@ export function MainScreen() {
   const [showingInfo, setShowingInfo] = useState(false);
   const [showingHistory, setShowingHistory] = useState(false);
 
-  const lastDates = useQuery({
-    queryKey: ["lastDates"],
-    queryFn: () => entryStore.lastDates(),
-  });
-  const enabledIds = useQuery({
-    queryKey: ["enabledSymptomIds"],
-    queryFn: () => getEnabledSymptomIds(appDb),
-  });
-  const customItems = useQuery({
-    queryKey: ["customItems"],
-    queryFn: () => listCustomItems(appDb),
-  });
+  const lastDates = useQuery(lastDatesOptions());
+  const enabledIds = useQuery(enabledSymptomIdsOptions());
+  const customItems = useQuery(customItemsOptions());
 
   // Custom items are always on (archiving removes them); they slot in
   // alphabetically — rating items after the built-in metrics, severity items

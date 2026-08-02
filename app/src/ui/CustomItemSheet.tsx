@@ -4,6 +4,7 @@ import { useState } from "react";
 import { StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import { appDb } from "../app/appDb";
+import { customItemKeys } from "../app/queries";
 import {
   addCustomItem,
   archiveCustomItem,
@@ -38,7 +39,7 @@ export function CustomItemSheet(props: {
   const [highIsGood, setHighIsGood] = useState(props.item?.highIsGood ?? false);
 
   const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ["customItems"] });
+    void queryClient.invalidateQueries({ queryKey: customItemKeys.all });
 
   const save = () => {
     const trimmedName = name.trim();

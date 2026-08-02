@@ -6,9 +6,16 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 
 import { appDb, entryStore } from "../app/appDb";
+import {
+  customItemKeys,
+  customItemsOptions,
+  enabledSymptomIdsOptions,
+  entryKeys,
+  settingsKeys,
+} from "../app/queries";
 import { SYMPTOMS } from "../catalog";
-import { listCustomItems, type CustomItem } from "../store/customItems";
-import { getEnabledSymptomIds, setEnabledSymptomIds } from "../store/settings";
+import { type CustomItem } from "../store/customItems";
+import { setEnabledSymptomIds } from "../store/settings";
 import { importEntriesFromJSON } from "../store/swiftImport";
 import { CustomItemSheet } from "./CustomItemSheet";
 import { SheetModal } from "./SheetModal";
@@ -20,15 +27,9 @@ export function SettingsSheet(props: { onClose: () => void }) {
   const [importResult, setImportResult] = useState<string | null>(null);
   // null = closed, "new" = creating, otherwise editing that item.
   const [editing, setEditing] = useState<CustomItem | "new" | null>(null);
-  const enabled = useQuery({
-    queryKey: ["enabledSymptomIds"],
-    queryFn: () => getEnabledSymptomIds(appDb),
-  });
+  const enabled = useQuery(enabledSymptomIdsOptions());
   const enabledSet = new Set(enabled.data ?? []);
-  const customItems = useQuery({
-    queryKey: ["customItems"],
-    queryFn: () => listCustomItems(appDb),
-  });
+  const customItems = useQuery(customItemsOptions());
 
   const toggle = (id: string, on: boolean) => {
     const next = new Set(enabledSet);
@@ -38,7 +39,9 @@ export function SettingsSheet(props: { onClose: () => void }) {
       next.delete(id);
     }
     setEnabledSymptomIds(appDb, [...next]);
-    void queryClient.invalidateQueries({ queryKey: ["enabledSymptomIds"] });
+    void queryClient.invalidateQueries({
+      queryKey: settingsKeys.enabledSymptomIds,
+    });
   };
 
   // Shared as a file, not an inline string: Android's share Intent has a
@@ -71,9 +74,9 @@ export function SettingsSheet(props: { onClose: () => void }) {
         appDb,
         json,
       );
-      void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
-      void queryClient.invalidateQueries({ queryKey: ["entries"] });
-      void queryClient.invalidateQueries({ queryKey: ["customItems"] });
+      // entryKeys.all covers every byKind query and lastDates.
+      void queryClient.invalidateQueries({ queryKey: entryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: customItemKeys.all });
       setImportResult(
         skippedUnknownKinds > 0
           ? `Imported ${added} entries (${skippedUnknownKinds} of an unknown type skipped).`

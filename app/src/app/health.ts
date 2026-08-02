@@ -7,6 +7,7 @@ import {
   mirrorPending,
 } from "../backends";
 import { appDb, entryStore } from "./appDb";
+import { entryKeys } from "./queries";
 
 // Startup sync: authorization (status-gated, so it only ever prompts once),
 // the one-time backfill of pre-existing backend history, then write-through
@@ -22,8 +23,8 @@ export async function syncAtStartup(queryClient: QueryClient): Promise<void> {
     );
     await mirrorPending(entryStore, activeBackend);
     if (imported > 0) {
-      void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
-      void queryClient.invalidateQueries({ queryKey: ["entries"] });
+      // entryKeys.all covers every byKind query and lastDates.
+      void queryClient.invalidateQueries({ queryKey: entryKeys.all });
     }
   } catch (error) {
     console.warn("health backend sync failed", error);
@@ -44,7 +45,7 @@ export function saveEntry(
   date: Date,
 ): void {
   entryStore.add(kind, value, date);
-  void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
-  void queryClient.invalidateQueries({ queryKey: ["entries", kind] });
+  void queryClient.invalidateQueries({ queryKey: entryKeys.byKind(kind) });
+  void queryClient.invalidateQueries({ queryKey: entryKeys.lastDates() });
   void mirrorPending(entryStore, activeBackend).catch(() => {});
 }

@@ -2,17 +2,19 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { appDb, entryStore } from "../app/appDb";
+import {
+  customItemsOptions,
+  enabledSymptomIdsOptions,
+  entriesByKindOptions,
+} from "../app/queries";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
 import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
-import { listCustomItems } from "../store/customItems";
 import {
   aggregatePoints,
   CHART_MODES,
   type ChartMode,
 } from "../lib/chartAggregate";
 import { type ChartInputPoint } from "../lib/chartGeometry";
-import { getEnabledSymptomIds } from "../store/settings";
 import { LineChart } from "./LineChart";
 import { SegmentedControl } from "./SegmentedControl";
 import { SheetModal } from "./SheetModal";
@@ -33,10 +35,7 @@ function ChartCard(props: {
   mapValue?: (value: number) => number;
 }) {
   const theme = useTheme();
-  const entries = useQuery({
-    queryKey: ["entries", props.kind],
-    queryFn: () => entryStore.byKind(props.kind),
-  });
+  const entries = useQuery(entriesByKindOptions(props.kind));
   // Symptoms map to option indices *before* averaging, so a day-average sits
   // between the labeled gridlines it came from.
   const points: ChartInputPoint[] = aggregatePoints(
@@ -111,14 +110,8 @@ function symptomChart(symptom: Symptom, mode: ChartMode, color: string) {
 export function HistorySheet(props: { onClose: () => void }) {
   const theme = useTheme();
   const [mode, setMode] = useState<ChartMode>("raw");
-  const enabledIds = useQuery({
-    queryKey: ["enabledSymptomIds"],
-    queryFn: () => getEnabledSymptomIds(appDb),
-  });
-  const customItems = useQuery({
-    queryKey: ["customItems"],
-    queryFn: () => listCustomItems(appDb),
-  });
+  const enabledIds = useQuery(enabledSymptomIdsOptions());
+  const customItems = useQuery(customItemsOptions());
   const custom = customItems.data ?? [];
   const enabledSymptoms = [
     ...SYMPTOMS.filter((s) => (enabledIds.data ?? []).includes(s.id)),
