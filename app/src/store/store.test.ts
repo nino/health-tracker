@@ -83,6 +83,34 @@ describe("EntryStore", () => {
     expect(entries[0].valueText).toBeNull();
   });
 
+  test("near-time notes only dedup when the text matches too", () => {
+    const store = freshStore();
+    const base = new Date("2026-07-12T10:00:00+02:00");
+    store.add("note", 0, base, base, "took ibuprofen");
+
+    const added = store.import([
+      // Same text 1s away: the dual-write-style duplicate, skipped.
+      {
+        kind: "note",
+        value: 0,
+        valueText: "took ibuprofen",
+        date: new Date(base.getTime() + 1000),
+      },
+      // Different text 1s away: a distinct note, kept.
+      {
+        kind: "note",
+        value: 0,
+        valueText: "headache started",
+        date: new Date(base.getTime() + 1000),
+      },
+    ]);
+    expect(added).toBe(1);
+    expect(store.byKind("note").map((e) => e.valueText)).toEqual([
+      "took ibuprofen",
+      "headache started",
+    ]);
+  });
+
   test("note entries round-trip their text through add, export, and import", () => {
     const store = freshStore();
     store.add(

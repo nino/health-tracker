@@ -44,10 +44,18 @@ function bucketStart(date: Date, mode: "day" | "week"): Date {
   return start;
 }
 
+/** Weeks shown per event chart (2 years). One backdated or imported old
+ * entry must not explode the bar count into sub-pixel bars (LineChart
+ * downsamples for the same reason). */
+export const MAX_COUNT_WEEKS = 104;
+
 /** Occurrences per local week (Monday-start) for event items, from the
- * first entry's week through `now`'s week. Empty weeks are filled with 0 —
- * for "flossed", the gap weeks are the interesting ones. Stepping by
- * calendar days (not fixed 7×24h) keeps week starts aligned across DST. */
+ * first entry's week through `now`'s week — capped to the most recent
+ * MAX_COUNT_WEEKS. Empty weeks are filled with 0 — for "flossed", the gap
+ * weeks are the interesting ones. Entries dated after `now` (importable;
+ * the UI can't create them) still extend the range instead of vanishing.
+ * Stepping by calendar days (not fixed 7×24h) keeps week starts aligned
+ * across DST. */
 export function weeklyCounts(dates: Date[], now: Date): ChartInputPoint[] {
   if (dates.length === 0) return [];
   const counts = new Map<number, number>();
@@ -56,11 +64,11 @@ export function weeklyCounts(dates: Date[], now: Date): ChartInputPoint[] {
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const first = new Date(Math.min(...counts.keys()));
-  const last = bucketStart(now, "week");
+  const last = Math.max(bucketStart(now, "week").getTime(), ...counts.keys());
   const points: ChartInputPoint[] = [];
   for (
     const week = new Date(first);
-    week.getTime() <= last.getTime();
+    week.getTime() <= last;
     week.setDate(week.getDate() + 7)
   ) {
     points.push({
@@ -68,5 +76,5 @@ export function weeklyCounts(dates: Date[], now: Date): ChartInputPoint[] {
       value: counts.get(week.getTime()) ?? 0,
     });
   }
-  return points;
+  return points.slice(-MAX_COUNT_WEEKS);
 }

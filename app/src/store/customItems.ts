@@ -61,8 +61,12 @@ export function listCustomItems(
   options: { includeArchived?: boolean } = {},
 ): CustomItem[] {
   const where = options.includeArchived ? "" : "WHERE archived_at IS NULL";
+  // NOCASE: plain ORDER BY name is byte-order ("Zebra" before "apple"),
+  // which would disagree with the localeCompare sort the symptom list uses.
   return db
-    .all<CustomItemRow>(`SELECT * FROM custom_items ${where} ORDER BY name`)
+    .all<CustomItemRow>(
+      `SELECT * FROM custom_items ${where} ORDER BY name COLLATE NOCASE`,
+    )
     .map(rowToItem);
 }
 

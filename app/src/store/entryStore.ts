@@ -199,22 +199,30 @@ export class EntryStore {
       backendId?: string;
     }[],
   ): number {
-    const existing = new Map<string, number[]>();
+    const existing = new Map<string, { t: number; text: string | null }[]>();
     for (const kind of new Set(entries.map((e) => e.kind))) {
       existing.set(
         kind,
         this.db
-          .all<{ date_unix_ms: number }>(
-            `SELECT date_unix_ms FROM entries WHERE kind = ?`,
+          .all<{ date_unix_ms: number; value_text: string | null }>(
+            `SELECT date_unix_ms, value_text FROM entries WHERE kind = ?`,
             [kind],
           )
-          .map((r) => r.date_unix_ms),
+          .map((r) => ({ t: r.date_unix_ms, text: r.value_text })),
       );
     }
     let added = 0;
     for (const candidate of entries) {
+      // Notes additionally compare their text: all notes share one kind, so
+      // kind+time alone would silently drop a *different* note that happens
+      // to sit within the window (the window exists for dual-written health
+      // samples, which notes never are).
       const nearby = (existing.get(candidate.kind) ?? []).some(
-        (t) => Math.abs(t - candidate.date.getTime()) <= IMPORT_DEDUP_WINDOW_MS,
+        (row) =>
+          Math.abs(row.t - candidate.date.getTime()) <=
+            IMPORT_DEDUP_WINDOW_MS &&
+          (candidate.kind !== "note" ||
+            row.text === (candidate.valueText ?? null)),
       );
       if (nearby) continue;
       this.db.run(

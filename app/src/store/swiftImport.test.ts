@@ -417,6 +417,56 @@ describe("custom items in exports", () => {
     ).toThrow(/non-zero note value/);
   });
 
+  test("on an id conflict, values validate against the device's kind", () => {
+    const { store, db } = freshStore();
+    importEntriesFromJSON(store, db, CUSTOM_EXPORT); // 22...22 is "rating"
+    // A file that claims the same id is a severity item, with a value that
+    // is only valid for severity (0). The device's kind must win: abort.
+    const conflicting = JSON.stringify({
+      entries: [
+        {
+          kind: "custom:22222222-2222-2222-2222-222222222222",
+          rating: 0,
+          date: "2026-07-25T10:00:00+02:00",
+          loggedAt: "2026-07-25T10:00:00+02:00",
+        },
+      ],
+      customItems: [
+        {
+          id: "22222222-2222-2222-2222-222222222222",
+          name: "Energy",
+          icon: "⚡",
+          kind: "severity",
+          createdAt: "2026-07-19T09:00:00+02:00",
+        },
+      ],
+    });
+    expect(() => importEntriesFromJSON(store, db, conflicting)).toThrow(
+      /out-of-range/,
+    );
+    expect(listCustomItems(db).find((i) => i.name === "Energy")?.kind).toBe(
+      "rating",
+    );
+  });
+
+  test("whitespace-only note text rejects", () => {
+    expect(() =>
+      parseExport(
+        JSON.stringify({
+          entries: [
+            {
+              kind: "note",
+              rating: 0,
+              text: "   ",
+              date: "2026-07-21T10:00:00+02:00",
+              loggedAt: "2026-07-21T10:00:00+02:00",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/note without text/);
+  });
+
   test("malformed custom items abort loudly", () => {
     expect(() =>
       parseExport(

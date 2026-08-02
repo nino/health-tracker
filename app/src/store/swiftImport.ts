@@ -211,7 +211,11 @@ export function parseExport(
   const customItems = parseCustomItems(parsed);
   const customKinds = new Map(knownCustomKinds);
   for (const item of customItems) {
-    customKinds.set(`${CUSTOM_KIND_PREFIX}${item.id}`, item.kind);
+    const key = `${CUSTOM_KIND_PREFIX}${item.id}`;
+    // On an id conflict the device's definition wins (matching the INSERT
+    // OR IGNORE in importEntriesFromJSON) — values must validate against
+    // the kind the entries will actually live under, not the file's claim.
+    if (!customKinds.has(key)) customKinds.set(key, item.kind);
   }
   const entries: ImportCandidate[] = [];
   let skippedUnknownKinds = 0;
@@ -241,7 +245,7 @@ export function parseExport(
       loggedAt: parseStrictDate(entry.loggedAt, index, "loggedAt"),
     };
     if (kind === NOTE_KIND) {
-      if (typeof entry.text !== "string" || entry.text === "") {
+      if (typeof entry.text !== "string" || entry.text.trim() === "") {
         throw new Error(`Entry ${index} is a note without text`);
       }
       candidate.valueText = entry.text;
