@@ -36,6 +36,11 @@ const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE entries ADD COLUMN backend_attempts INTEGER NOT NULL DEFAULT 0`,
   ],
+  // v4: stress/anxiety moved from 0–10 to 1–10 (1 = "none", matching mood's
+  // range). Old zeros fold into 1; the JSON import does the same mapping.
+  [
+    `UPDATE entries SET value = 1 WHERE kind IN ('stress', 'anxiety') AND value = 0`,
+  ],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

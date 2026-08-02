@@ -71,12 +71,16 @@ function validateValue(kind: string, rating: unknown, index: number): number {
   }
   const metric = metricById(kind);
   if (metric) {
-    if (rating < metric.min || rating > metric.max) {
+    // Exports written before schema v4 have 0–10 stress/anxiety; fold the
+    // zeros into 1 ("none"), the same mapping the v4 migration applied.
+    const value =
+      rating === 0 && (kind === "stress" || kind === "anxiety") ? 1 : rating;
+    if (value < metric.min || value > metric.max) {
       throw new Error(
         `Entry ${index} has an out-of-range ${kind} rating: ${rating}`,
       );
     }
-    return rating;
+    return value;
   }
   const symptom = symptomById(kind);
   if (!symptom) throw new Error(`Entry ${index} has unknown kind: ${kind}`);

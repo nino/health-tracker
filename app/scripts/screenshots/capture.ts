@@ -56,7 +56,7 @@ await page.getByText("Log Symptom").waitFor({ timeout: 20_000 });
 // Seed through the real import flow so screenshots show real store reads.
 await page.getByText("⚙️").click();
 const chooserPromise = page.waitForEvent("filechooser");
-await page.getByText("Import metric-log JSON (from the Swift app)").click();
+await page.getByText("Import JSON data").click();
 await (
   await chooserPromise
 ).setFiles({
@@ -70,6 +70,20 @@ await page.getByText("Done").click();
 await page.getByText("Mood").first().waitFor();
 await page.waitForTimeout(500);
 await page.screenshot({ path: name("main") });
+
+await page.getByText("Stress", { exact: true }).first().click();
+await page.getByText("Save", { exact: true }).waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("log-stress") });
+await page.getByText("Cancel").click();
+await page.getByText("Log Symptom").waitFor();
+
+await page.getByText("⚙️").click();
+await page.getByText("Export data as JSON").waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("settings") });
+await page.getByText("Done").click();
+await page.getByText("Log Symptom").waitFor();
 
 await page.getByText("📈").click();
 await page.getByText("History").waitFor();
