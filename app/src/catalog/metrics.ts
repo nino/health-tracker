@@ -5,7 +5,8 @@
 export type MetricId = "mood" | "stress" | "anxiety";
 
 export interface Metric {
-  id: MetricId;
+  /** A MetricId for the built-ins; "custom:<id>" for custom rating items. */
+  id: string;
   name: string;
   icon: string;
   /** All metrics are 1–10 (mood: 5.5 = neutral valence in Apple Health;

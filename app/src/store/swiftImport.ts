@@ -1,11 +1,15 @@
-import { metricById, symptomById } from "../catalog";
+import { metricById, symptomById, VALUE_KINDS } from "../catalog";
+import { toLocalISOString } from "../lib/dates";
+import { CUSTOM_KIND_PREFIX, type CustomItemKind } from "./customItems";
+import { type SqlDriver } from "./driver";
 import { type EntryStore } from "./entryStore";
 
 // Parses exported JSON — the Swift app's metric-log.json or this app's own
-// export ({ exportedAt, entries } or a bare entry array) — into candidates
-// for EntryStore.import. Malformed entries abort loudly (never a silent
-// partial import); entries whose kind this app doesn't know are skipped and
-// counted, so exports from newer versions degrade gracefully.
+// export ({ exportedAt, entries, customItems? } or a bare entry array) —
+// into candidates for EntryStore.import. Malformed entries abort loudly
+// (never a silent partial import); entries whose kind this app doesn't know
+// are skipped and counted, so exports from newer versions degrade
+// gracefully.
 
 export interface ImportCandidate {
   kind: string;
@@ -16,8 +20,20 @@ export interface ImportCandidate {
   backendId?: string;
 }
 
+/** A custom-item definition as it appears in an export file. */
+export interface CustomItemCandidate {
+  id: string;
+  name: string;
+  icon: string;
+  kind: CustomItemKind;
+  highIsGood: boolean;
+  createdAt: Date;
+  archivedAt: Date | null;
+}
+
 export interface ParsedExport {
   entries: ImportCandidate[];
+  customItems: CustomItemCandidate[];
   skippedUnknownKinds: number;
 }
 
@@ -65,9 +81,35 @@ function parseStrictDate(value: unknown, index: number, field: string): Date {
   return date;
 }
 
-function validateValue(kind: string, rating: unknown, index: number): number {
+const SEVERITY_VALUES = new Set(
+  VALUE_KINDS.severity.options.map((o) => o.value),
+);
+
+function validateValue(
+  kind: string,
+  rating: unknown,
+  index: number,
+  customKinds: Map<string, CustomItemKind>,
+): number {
   if (typeof rating !== "number" || !Number.isInteger(rating)) {
     throw new Error(`Entry ${index} has a non-integer rating`);
+  }
+  const customKind = customKinds.get(kind);
+  if (customKind === "severity") {
+    if (!SEVERITY_VALUES.has(rating)) {
+      throw new Error(
+        `Entry ${index} has an invalid severity value for ${kind}: ${rating}`,
+      );
+    }
+    return rating;
+  }
+  if (customKind === "rating") {
+    if (rating < 1 || rating > 10) {
+      throw new Error(
+        `Entry ${index} has an out-of-range ${kind} rating: ${rating}`,
+      );
+    }
+    return rating;
   }
   const metric = metricById(kind);
   if (metric) {
@@ -92,7 +134,53 @@ function validateValue(kind: string, rating: unknown, index: number): number {
   return rating;
 }
 
-export function parseExport(json: string): ParsedExport {
+function requireString(value: unknown, index: number, field: string): string {
+  if (typeof value !== "string" || value === "") {
+    throw new Error(`Custom item ${index} has a missing or empty ${field}`);
+  }
+  return value;
+}
+
+function parseCustomItems(parsed: unknown): CustomItemCandidate[] {
+  if (parsed === null || typeof parsed !== "object") return [];
+  const raw = (parsed as { customItems?: unknown }).customItems;
+  if (raw === undefined) return []; // pre-custom-items export
+  if (!Array.isArray(raw)) {
+    throw new Error("customItems is not an array");
+  }
+  return raw.map((item, index) => {
+    if (item === null || typeof item !== "object") {
+      throw new Error(`Custom item ${index} is not an object`);
+    }
+    const record = item as Record<string, unknown>;
+    const kind = record.kind;
+    if (kind !== "severity" && kind !== "rating") {
+      throw new Error(
+        `Custom item ${index} has an unknown kind: ${String(kind)}`,
+      );
+    }
+    return {
+      id: requireString(record.id, index, "id"),
+      name: requireString(record.name, index, "name"),
+      icon: requireString(record.icon, index, "icon"),
+      kind,
+      highIsGood: kind === "rating" && record.highIsGood === true,
+      createdAt: parseStrictDate(record.createdAt, index, "createdAt"),
+      archivedAt:
+        record.archivedAt === null || record.archivedAt === undefined
+          ? null
+          : parseStrictDate(record.archivedAt, index, "archivedAt"),
+    };
+  });
+}
+
+/** `knownCustomKinds` maps entry kinds ("custom:<id>") of already-stored
+ * custom items — entries for those import even when the file predates its
+ * item or omits the definition. */
+export function parseExport(
+  json: string,
+  knownCustomKinds: Map<string, CustomItemKind> = new Map(),
+): ParsedExport {
   const parsed: unknown = JSON.parse(json);
   const raw = Array.isArray(parsed)
     ? parsed
@@ -103,6 +191,11 @@ export function parseExport(json: string): ParsedExport {
       : null;
   if (raw === null) {
     throw new Error("Not a metric-log export: expected an entries array");
+  }
+  const customItems = parseCustomItems(parsed);
+  const customKinds = new Map(knownCustomKinds);
+  for (const item of customItems) {
+    customKinds.set(`${CUSTOM_KIND_PREFIX}${item.id}`, item.kind);
   }
   const entries: ImportCandidate[] = [];
   let skippedUnknownKinds = 0;
@@ -115,21 +208,24 @@ export function parseExport(json: string): ParsedExport {
     if (typeof kind !== "string") {
       throw new Error(`Entry ${index} has no kind`);
     }
-    if (!metricById(kind) && !symptomById(kind)) {
+    const isKnownCustom = customKinds.has(kind);
+    if (!isKnownCustom && !metricById(kind) && !symptomById(kind)) {
       skippedUnknownKinds++;
       return;
     }
     entries.push({
       kind,
-      value: validateValue(kind, entry.rating, index),
+      value: validateValue(kind, entry.rating, index, customKinds),
       date: parseStrictDate(entry.date, index, "date"),
       loggedAt: parseStrictDate(entry.loggedAt, index, "loggedAt"),
     });
   });
-  return { entries, skippedUnknownKinds };
+  return { entries, customItems, skippedUnknownKinds };
 }
 
-/** The one import path for user-provided JSON. Mood entries get HealthKit
+/** The one import path for user-provided JSON. Restores custom-item
+ * definitions before entries (INSERT OR IGNORE — a definition already on
+ * this device wins over the file's copy). Mood entries get HealthKit
  * provenance: the Swift app dual-wrote every mood to Apple Health, so
  * re-mirroring them would duplicate samples. (If the file came from a device
  * where mood never reached HealthKit, those entries are skipped rather than
@@ -137,9 +233,34 @@ export function parseExport(json: string): ParsedExport {
  * health sample is not.) */
 export function importEntriesFromJSON(
   store: EntryStore,
+  db: SqlDriver,
   json: string,
 ): { added: number; skippedUnknownKinds: number } {
-  const parsed = parseExport(json);
+  const known = new Map<string, CustomItemKind>(
+    db
+      .all<{ id: string; kind: string }>(`SELECT id, kind FROM custom_items`)
+      .map((row) => [
+        `${CUSTOM_KIND_PREFIX}${row.id}`,
+        row.kind as CustomItemKind,
+      ]),
+  );
+  const parsed = parseExport(json, known);
+  for (const item of parsed.customItems) {
+    db.run(
+      `INSERT OR IGNORE INTO custom_items
+         (id, name, icon, kind, high_is_good, created_at, archived_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id,
+        item.name,
+        item.icon,
+        item.kind,
+        item.highIsGood ? 1 : 0,
+        toLocalISOString(item.createdAt),
+        item.archivedAt === null ? null : toLocalISOString(item.archivedAt),
+      ],
+    );
+  }
   const added = store.import(
     parsed.entries.map((entry) =>
       entry.kind === "mood"

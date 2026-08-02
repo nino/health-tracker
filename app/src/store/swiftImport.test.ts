@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { listCustomItems } from "./customItems";
+import { type SqlDriver } from "./driver";
 import { EntryStore } from "./entryStore";
 import { importEntriesFromJSON, parseExport } from "./swiftImport";
 import { memoryDriver, sequentialIds } from "./testDriver";
@@ -39,8 +41,9 @@ function entryJSON(overrides: Record<string, unknown>): string {
   });
 }
 
-function freshStore(): EntryStore {
-  return new EntryStore(memoryDriver(), sequentialIds());
+function freshStore(): { store: EntryStore; db: SqlDriver } {
+  const db = memoryDriver();
+  return { store: new EntryStore(db, sequentialIds()), db };
 }
 
 describe("parseExport", () => {
@@ -63,7 +66,7 @@ describe("parseExport", () => {
   });
 
   test("accepts symptom kinds — the app's own export round-trips", () => {
-    const store = freshStore();
+    const { store } = freshStore();
     store.add("mood", 7, new Date("2026-07-12T09:41:00+02:00"));
     store.add(
       "HKCategoryTypeIdentifierHeadache",
@@ -76,9 +79,13 @@ describe("parseExport", () => {
 
     // And restores into a fresh store.
     const restored = freshStore();
-    const result = importEntriesFromJSON(restored, store.exportJSON());
+    const result = importEntriesFromJSON(
+      restored.store,
+      restored.db,
+      store.exportJSON(),
+    );
     expect(result.added).toBe(2);
-    expect(restored.count()).toBe(2);
+    expect(restored.store.count()).toBe(2);
   });
 
   test("skips (and counts) unknown kinds instead of aborting", () => {
@@ -173,15 +180,15 @@ describe("parseExport", () => {
 
 describe("importEntriesFromJSON", () => {
   test("imports with dedup against existing entries", () => {
-    const store = freshStore();
-    expect(importEntriesFromJSON(store, SWIFT_EXPORT).added).toBe(2);
-    expect(importEntriesFromJSON(store, SWIFT_EXPORT).added).toBe(0);
+    const { store, db } = freshStore();
+    expect(importEntriesFromJSON(store, db, SWIFT_EXPORT).added).toBe(2);
+    expect(importEntriesFromJSON(store, db, SWIFT_EXPORT).added).toBe(0);
     expect(store.count()).toBe(2);
   });
 
   test("Swift mood entries carry dual-write provenance (never re-mirrored)", () => {
-    const store = freshStore();
-    importEntriesFromJSON(store, SWIFT_EXPORT);
+    const { store, db } = freshStore();
+    importEntriesFromJSON(store, db, SWIFT_EXPORT);
     const mood = store.byKind("mood")[0];
     expect(mood.backend).toBe("healthkit");
     expect(mood.backendId).toBe("swift-dual-write");
@@ -190,9 +197,10 @@ describe("importEntriesFromJSON", () => {
   });
 
   test("keeps distinct in-batch entries logged <2s apart", () => {
-    const store = freshStore();
+    const { store, db } = freshStore();
     const result = importEntriesFromJSON(
       store,
+      db,
       JSON.stringify({
         entries: [
           {
@@ -212,5 +220,148 @@ describe("importEntriesFromJSON", () => {
     );
     expect(result.added).toBe(2);
     expect(store.byKind("stress").map((e) => e.value)).toEqual([2, 9]);
+  });
+});
+
+describe("custom items in exports", () => {
+  const CUSTOM_EXPORT = JSON.stringify({
+    exportedAt: "2026-08-02T12:00:00+02:00",
+    entries: [
+      {
+        kind: "custom:11111111-1111-1111-1111-111111111111",
+        rating: 3,
+        date: "2026-07-20T10:00:00+02:00",
+        loggedAt: "2026-07-20T10:00:00+02:00",
+      },
+      {
+        kind: "custom:22222222-2222-2222-2222-222222222222",
+        rating: 8,
+        date: "2026-07-21T10:00:00+02:00",
+        loggedAt: "2026-07-21T10:00:00+02:00",
+      },
+    ],
+    customItems: [
+      {
+        id: "11111111-1111-1111-1111-111111111111",
+        name: "Tinnitus",
+        icon: "🔔",
+        kind: "severity",
+        highIsGood: false,
+        createdAt: "2026-07-19T09:00:00+02:00",
+        archivedAt: null,
+      },
+      {
+        id: "22222222-2222-2222-2222-222222222222",
+        name: "Energy",
+        icon: "⚡",
+        kind: "rating",
+        highIsGood: true,
+        createdAt: "2026-07-19T09:00:00+02:00",
+        archivedAt: null,
+      },
+    ],
+  });
+
+  test("restores definitions and their entries", () => {
+    const { store, db } = freshStore();
+    const result = importEntriesFromJSON(store, db, CUSTOM_EXPORT);
+    expect(result.added).toBe(2);
+    expect(result.skippedUnknownKinds).toBe(0);
+    const items = listCustomItems(db);
+    expect(items.map((i) => i.name)).toEqual(["Energy", "Tinnitus"]);
+    expect(items[0].kind).toBe("rating");
+    expect(items[0].highIsGood).toBe(true);
+  });
+
+  test("full round-trip: export of a store with custom items re-imports", () => {
+    const { store, db } = freshStore();
+    importEntriesFromJSON(store, db, CUSTOM_EXPORT);
+    const restored = freshStore();
+    const result = importEntriesFromJSON(
+      restored.store,
+      restored.db,
+      store.exportJSON(),
+    );
+    expect(result.added).toBe(2);
+    expect(listCustomItems(restored.db).length).toBe(2);
+  });
+
+  test("an existing local definition wins over the file's copy", () => {
+    const { store, db } = freshStore();
+    importEntriesFromJSON(store, db, CUSTOM_EXPORT);
+    db.run(`UPDATE custom_items SET name = 'Renamed' WHERE name = 'Tinnitus'`);
+    importEntriesFromJSON(store, db, CUSTOM_EXPORT);
+    const names = listCustomItems(db).map((i) => i.name);
+    expect(names).toContain("Renamed");
+    expect(names).not.toContain("Tinnitus");
+  });
+
+  test("custom entries without a definition anywhere are skipped, not fatal", () => {
+    const { store, db } = freshStore();
+    const result = importEntriesFromJSON(
+      store,
+      db,
+      JSON.stringify({
+        entries: [
+          {
+            kind: "custom:99999999-9999-9999-9999-999999999999",
+            rating: 3,
+            date: "2026-07-20T10:00:00+02:00",
+            loggedAt: "2026-07-20T10:00:00+02:00",
+          },
+        ],
+      }),
+    );
+    expect(result.added).toBe(0);
+    expect(result.skippedUnknownKinds).toBe(1);
+  });
+
+  test("entries validate against the item's kind", () => {
+    // 11...11 is a severity item: 7 is not a severity raw value.
+    expect(() =>
+      parseExport(
+        JSON.stringify({
+          entries: [
+            {
+              kind: "custom:11111111-1111-1111-1111-111111111111",
+              rating: 7,
+              date: "2026-07-20T10:00:00+02:00",
+              loggedAt: "2026-07-20T10:00:00+02:00",
+            },
+          ],
+          customItems: JSON.parse(CUSTOM_EXPORT).customItems,
+        }),
+      ),
+    ).toThrow(/invalid severity value/);
+    // 22...22 is a rating item: 0 is out of the 1–10 range.
+    expect(() =>
+      parseExport(
+        JSON.stringify({
+          entries: [
+            {
+              kind: "custom:22222222-2222-2222-2222-222222222222",
+              rating: 0,
+              date: "2026-07-20T10:00:00+02:00",
+              loggedAt: "2026-07-20T10:00:00+02:00",
+            },
+          ],
+          customItems: JSON.parse(CUSTOM_EXPORT).customItems,
+        }),
+      ),
+    ).toThrow(/out-of-range/);
+  });
+
+  test("malformed custom items abort loudly", () => {
+    expect(() =>
+      parseExport(
+        JSON.stringify({
+          entries: [],
+          customItems: [{ id: "x", name: "No kind", icon: "❓" }],
+        }),
+      ),
+    ).toThrow(/unknown kind/);
+    expect(() =>
+      parseExport(JSON.stringify({ entries: [], customItems: "nope" })),
+    ).toThrow(/not an array/);
   });
 });
