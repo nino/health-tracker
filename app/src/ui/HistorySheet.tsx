@@ -12,9 +12,12 @@ import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
 import {
   aggregatePoints,
   CHART_MODES,
+  weeklyCounts,
   type ChartMode,
 } from "../lib/chartAggregate";
 import { type ChartInputPoint } from "../lib/chartGeometry";
+import { customEntryKind, type CustomItem } from "../store/customItems";
+import { BarChart } from "./BarChart";
 import { LineChart } from "./LineChart";
 import { SegmentedControl } from "./SegmentedControl";
 import { SheetModal } from "./SheetModal";
@@ -107,6 +110,38 @@ function symptomChart(symptom: Symptom, mode: ChartMode, color: string) {
   );
 }
 
+// Event items chart as occurrences per week — the display-mode control
+// doesn't apply (a raw scatter of "1" carries no information).
+function EventChartCard(props: { item: CustomItem; color: string }) {
+  const theme = useTheme();
+  const kind = customEntryKind(props.item.id);
+  const entries = useQuery(entriesByKindOptions(kind));
+  const points = weeklyCounts(
+    (entries.data ?? []).map((e) => e.date),
+    new Date(),
+  );
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
+      <Text style={[styles.cardTitle, { color: theme.text }]}>
+        {props.item.icon} {props.item.name} · per week
+      </Text>
+      {points.length === 0 ? (
+        <Text style={[styles.empty, { color: theme.secondaryText }]}>
+          Nothing logged yet.
+        </Text>
+      ) : (
+        <BarChart points={points} color={props.color} />
+      )}
+    </View>
+  );
+}
+
 export function HistorySheet(props: { onClose: () => void }) {
   const theme = useTheme();
   const [mode, setMode] = useState<ChartMode>("raw");
@@ -143,6 +178,11 @@ export function HistorySheet(props: { onClose: () => void }) {
       {enabledSymptoms.map((symptom) =>
         symptomChart(symptom, mode, theme.tint),
       )}
+      {custom
+        .filter((item) => item.kind === "event")
+        .map((item) => (
+          <EventChartCard key={item.id} item={item} color={theme.tint} />
+        ))}
     </SheetModal>
   );
 }

@@ -351,6 +351,122 @@ describe("custom items in exports", () => {
     ).toThrow(/out-of-range/);
   });
 
+  test("events and notes round-trip; their values validate", () => {
+    const EVENT_ID = "33333333-3333-3333-3333-333333333333";
+    const eventExport = JSON.stringify({
+      entries: [
+        {
+          kind: `custom:${EVENT_ID}`,
+          rating: 1,
+          date: "2026-07-20T10:00:00+02:00",
+          loggedAt: "2026-07-20T10:00:00+02:00",
+        },
+        {
+          kind: "note",
+          rating: 0,
+          text: "hit my head",
+          date: "2026-07-21T10:00:00+02:00",
+          loggedAt: "2026-07-21T10:00:00+02:00",
+        },
+      ],
+      customItems: [
+        {
+          id: EVENT_ID,
+          name: "Flossed",
+          icon: "🦷",
+          kind: "event",
+          highIsGood: false,
+          createdAt: "2026-07-19T09:00:00+02:00",
+          archivedAt: null,
+        },
+      ],
+    });
+    const { store, db } = freshStore();
+    const result = importEntriesFromJSON(store, db, eventExport);
+    expect(result.added).toBe(2);
+    expect(listCustomItems(db)[0].kind).toBe("event");
+    expect(store.byKind("note")[0].valueText).toBe("hit my head");
+
+    // Round-trips through this app's own export.
+    const restored = freshStore();
+    expect(
+      importEntriesFromJSON(restored.store, restored.db, store.exportJSON())
+        .added,
+    ).toBe(2);
+
+    // An event value other than 1 is invalid; a note needs text and value 0.
+    const withEntry = (entry: Record<string, unknown>) =>
+      JSON.stringify({
+        entries: [
+          {
+            date: "2026-07-20T10:00:00+02:00",
+            loggedAt: "2026-07-20T10:00:00+02:00",
+            ...entry,
+          },
+        ],
+        customItems: JSON.parse(eventExport).customItems,
+      });
+    expect(() =>
+      parseExport(withEntry({ kind: `custom:${EVENT_ID}`, rating: 3 })),
+    ).toThrow(/invalid event value/);
+    expect(() => parseExport(withEntry({ kind: "note", rating: 0 }))).toThrow(
+      /note without text/,
+    );
+    expect(() =>
+      parseExport(withEntry({ kind: "note", rating: 5, text: "x" })),
+    ).toThrow(/non-zero note value/);
+  });
+
+  test("on an id conflict, values validate against the device's kind", () => {
+    const { store, db } = freshStore();
+    importEntriesFromJSON(store, db, CUSTOM_EXPORT); // 22...22 is "rating"
+    // A file that claims the same id is a severity item, with a value that
+    // is only valid for severity (0). The device's kind must win: abort.
+    const conflicting = JSON.stringify({
+      entries: [
+        {
+          kind: "custom:22222222-2222-2222-2222-222222222222",
+          rating: 0,
+          date: "2026-07-25T10:00:00+02:00",
+          loggedAt: "2026-07-25T10:00:00+02:00",
+        },
+      ],
+      customItems: [
+        {
+          id: "22222222-2222-2222-2222-222222222222",
+          name: "Energy",
+          icon: "⚡",
+          kind: "severity",
+          createdAt: "2026-07-19T09:00:00+02:00",
+        },
+      ],
+    });
+    expect(() => importEntriesFromJSON(store, db, conflicting)).toThrow(
+      /out-of-range/,
+    );
+    expect(listCustomItems(db).find((i) => i.name === "Energy")?.kind).toBe(
+      "rating",
+    );
+  });
+
+  test("whitespace-only note text rejects", () => {
+    expect(() =>
+      parseExport(
+        JSON.stringify({
+          entries: [
+            {
+              kind: "note",
+              rating: 0,
+              text: "   ",
+              date: "2026-07-21T10:00:00+02:00",
+              loggedAt: "2026-07-21T10:00:00+02:00",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/note without text/);
+  });
+
   test("malformed custom items abort loudly", () => {
     expect(() =>
       parseExport(

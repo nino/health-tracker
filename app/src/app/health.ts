@@ -43,8 +43,9 @@ export function saveEntry(
   kind: string,
   value: number,
   date: Date,
+  valueText: string | null = null,
 ): void {
-  entryStore.add(kind, value, date);
+  entryStore.add(kind, value, date, new Date(), valueText);
   void queryClient.invalidateQueries({ queryKey: entryKeys.byKind(kind) });
   void queryClient.invalidateQueries({ queryKey: entryKeys.lastDates() });
   void mirrorPending(entryStore, activeBackend).catch(() => {});

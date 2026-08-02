@@ -1,4 +1,5 @@
 import { metricById, symptomById, VALUE_KINDS } from "../catalog";
+import { NOTE_KIND } from "../catalog/note";
 import { toLocalISOString } from "../lib/dates";
 import { CUSTOM_KIND_PREFIX, type CustomItemKind } from "./customItems";
 import { type SqlDriver } from "./driver";
@@ -14,6 +15,7 @@ import { type EntryStore } from "./entryStore";
 export interface ImportCandidate {
   kind: string;
   value: number;
+  valueText?: string;
   date: Date;
   loggedAt: Date;
   backend?: string;
@@ -111,6 +113,20 @@ function validateValue(
     }
     return rating;
   }
+  if (customKind === "event") {
+    if (rating !== 1) {
+      throw new Error(
+        `Entry ${index} has an invalid event value for ${kind}: ${rating}`,
+      );
+    }
+    return rating;
+  }
+  if (kind === NOTE_KIND) {
+    if (rating !== 0) {
+      throw new Error(`Entry ${index} has a non-zero note value: ${rating}`);
+    }
+    return rating;
+  }
   const metric = metricById(kind);
   if (metric) {
     // Exports written before schema v4 have 0–10 stress/anxiety; fold the
@@ -154,7 +170,7 @@ function parseCustomItems(parsed: unknown): CustomItemCandidate[] {
     }
     const record = item as Record<string, unknown>;
     const kind = record.kind;
-    if (kind !== "severity" && kind !== "rating") {
+    if (kind !== "severity" && kind !== "rating" && kind !== "event") {
       throw new Error(
         `Custom item ${index} has an unknown kind: ${String(kind)}`,
       );
@@ -195,7 +211,11 @@ export function parseExport(
   const customItems = parseCustomItems(parsed);
   const customKinds = new Map(knownCustomKinds);
   for (const item of customItems) {
-    customKinds.set(`${CUSTOM_KIND_PREFIX}${item.id}`, item.kind);
+    const key = `${CUSTOM_KIND_PREFIX}${item.id}`;
+    // On an id conflict the device's definition wins (matching the INSERT
+    // OR IGNORE in importEntriesFromJSON) — values must validate against
+    // the kind the entries will actually live under, not the file's claim.
+    if (!customKinds.has(key)) customKinds.set(key, item.kind);
   }
   const entries: ImportCandidate[] = [];
   let skippedUnknownKinds = 0;
@@ -209,16 +229,28 @@ export function parseExport(
       throw new Error(`Entry ${index} has no kind`);
     }
     const isKnownCustom = customKinds.has(kind);
-    if (!isKnownCustom && !metricById(kind) && !symptomById(kind)) {
+    if (
+      !isKnownCustom &&
+      kind !== NOTE_KIND &&
+      !metricById(kind) &&
+      !symptomById(kind)
+    ) {
       skippedUnknownKinds++;
       return;
     }
-    entries.push({
+    const candidate: ImportCandidate = {
       kind,
       value: validateValue(kind, entry.rating, index, customKinds),
       date: parseStrictDate(entry.date, index, "date"),
       loggedAt: parseStrictDate(entry.loggedAt, index, "loggedAt"),
-    });
+    };
+    if (kind === NOTE_KIND) {
+      if (typeof entry.text !== "string" || entry.text.trim() === "") {
+        throw new Error(`Entry ${index} is a note without text`);
+      }
+      candidate.valueText = entry.text;
+    }
+    entries.push(candidate);
   });
   return { entries, customItems, skippedUnknownKinds };
 }

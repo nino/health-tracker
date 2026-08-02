@@ -73,7 +73,10 @@ export function generateDemoExport(): string {
         11,
       );
     }
-    // Custom items (issue #5): a rating item and a severity item.
+    // Custom items (issue #5): a rating item, a severity item, an event.
+    if (rand() < 0.55) {
+      add(`custom:${FLOSSED_ID}`, 1, day, 22);
+    }
     add(
       `custom:${ENERGY_ID}`,
       clamp(1, 10, 6 + wave + (rand() - 0.5) * 4),
@@ -110,6 +113,15 @@ export function generateDemoExport(): string {
       createdAt: iso(new Date(2026, 4, 18, 8)),
       archivedAt: null,
     },
+    {
+      id: FLOSSED_ID,
+      name: "Flossed",
+      icon: "🦷",
+      kind: "event",
+      highIsGood: false,
+      createdAt: iso(new Date(2026, 4, 18, 8)),
+      archivedAt: null,
+    },
   ];
 
   return JSON.stringify({
@@ -121,3 +133,4 @@ export function generateDemoExport(): string {
 
 const ENERGY_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000001";
 const TINNITUS_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000002";
+const FLOSSED_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000003";

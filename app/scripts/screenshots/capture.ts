@@ -78,6 +78,20 @@ await page.screenshot({ path: name("log-stress") });
 await page.getByText("Cancel").click();
 await page.getByText("Log Symptom").waitFor();
 
+await page.getByText("Flossed").click();
+await page.getByText("Log that it happened.").waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("log-event") });
+await page.getByText("Cancel").click();
+await page.getByText("Log Symptom").waitFor();
+
+await page.getByText("Quick Note").click();
+await page.getByPlaceholder("What happened?").waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("log-note") });
+await page.getByText("Cancel").click();
+await page.getByText("Log Symptom").waitFor();
+
 await page.getByText("⚙️").click();
 await page.getByText("Export data as JSON").waitFor();
 await page.waitForTimeout(400);
@@ -101,6 +115,10 @@ await page.screenshot({ path: name("history-day-avg") });
 await page.getByText("Week avg").click();
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-week-avg") });
+// The event bar chart sits at the bottom of the history sheet.
+await page.getByText("per week").scrollIntoViewIfNeeded();
+await page.waitForTimeout(600);
+await page.screenshot({ path: name("history-events") });
 
 await browser.close();
 server.stop();

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { aggregatePoints } from "./chartAggregate";
+import {
+  aggregatePoints,
+  MAX_COUNT_WEEKS,
+  weeklyCounts,
+} from "./chartAggregate";
 
 // Local-time constructors throughout — bucketing is by local calendar.
 // 2026-07-27 is a Monday.
@@ -50,5 +54,51 @@ describe("aggregatePoints", () => {
     expect(aggregatePoints([], "raw")).toEqual([]);
     expect(aggregatePoints([], "day")).toEqual([]);
     expect(aggregatePoints([], "week")).toEqual([]);
+  });
+});
+
+describe("weeklyCounts", () => {
+  const day = (d: number, hour = 12) => new Date(2026, 6, d, hour);
+
+  test("counts occurrences per Monday-start week", () => {
+    // Weeks: Jul 6, Jul 13, Jul 20 (now = Jul 22).
+    const result = weeklyCounts(
+      [day(6), day(7), day(12, 23), day(21)],
+      day(22),
+    );
+    expect(result).toEqual([
+      { date: new Date(2026, 6, 6), value: 3 },
+      { date: new Date(2026, 6, 13), value: 0 },
+      { date: new Date(2026, 6, 20), value: 1 },
+    ]);
+  });
+
+  test("fills empty weeks through to now — the gaps are the signal", () => {
+    const result = weeklyCounts([day(1)], day(29));
+    // Jun 29 week through Jul 27 week: five weeks, one occurrence.
+    expect(result.map((p) => p.value)).toEqual([1, 0, 0, 0, 0]);
+    expect(result.every((p) => p.date.getDay() === 1)).toBe(true);
+  });
+
+  test("empty input stays empty", () => {
+    expect(weeklyCounts([], day(22))).toEqual([]);
+  });
+
+  test("future-dated entries extend the range instead of vanishing", () => {
+    // Entry in the week after `now` (importable from a wrong-clock file).
+    const result = weeklyCounts([day(15), day(30)], day(22));
+    expect(result.map((p) => p.value)).toEqual([1, 0, 1]);
+    // Only-future entries still chart (not "Nothing logged yet").
+    expect(weeklyCounts([day(30)], day(22)).map((p) => p.value)).toEqual([1]);
+  });
+
+  test("caps at MAX_COUNT_WEEKS, keeping the most recent weeks", () => {
+    // One entry ~4 years back plus one now → cap kicks in.
+    const old = new Date(2022, 6, 6);
+    const result = weeklyCounts([old, day(21)], day(22));
+    expect(result.length).toBe(MAX_COUNT_WEEKS);
+    // The old entry's week fell off the front; the recent one survived.
+    expect(result[result.length - 1].value).toBe(1);
+    expect(result.reduce((sum, p) => sum + p.value, 0)).toBe(1);
   });
 });

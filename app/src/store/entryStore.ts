@@ -8,6 +8,8 @@ export interface Entry {
   id: string;
   kind: string;
   value: number;
+  /** Free text — quick-note entries (kind "note") only, null elsewhere. */
+  valueText: string | null;
   /** The user-set sample date (may be backdated). */
   date: Date;
   /** When the entry was actually saved — lets analysis down-weight fuzzy
@@ -24,6 +26,7 @@ interface EntryRow {
   id: string;
   kind: string;
   value: number;
+  value_text: string | null;
   date: string;
   logged_at: string;
   backend: string | null;
@@ -36,6 +39,7 @@ function rowToEntry(row: EntryRow): Entry {
     id: row.id,
     kind: row.kind,
     value: row.value,
+    valueText: row.value_text,
     date: parseISOString(row.date),
     loggedAt: parseISOString(row.logged_at),
     backend: row.backend,
@@ -79,11 +83,13 @@ export class EntryStore {
     value: number,
     date: Date,
     loggedAt: Date = new Date(),
+    valueText: string | null = null,
   ): Entry {
     const entry: Entry = {
       id: this.newId(),
       kind,
       value,
+      valueText,
       date,
       loggedAt,
       backend: null,
@@ -91,12 +97,13 @@ export class EntryStore {
       backendSyncedAt: null,
     };
     this.db.run(
-      `INSERT INTO entries (id, kind, value, date, date_unix_ms, logged_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO entries (id, kind, value, value_text, date, date_unix_ms, logged_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         entry.id,
         entry.kind,
         entry.value,
+        entry.valueText,
         toLocalISOString(entry.date),
         entry.date.getTime(),
         toLocalISOString(entry.loggedAt),
@@ -185,37 +192,47 @@ export class EntryStore {
     entries: {
       kind: string;
       value: number;
+      valueText?: string;
       date: Date;
       loggedAt?: Date;
       backend?: string;
       backendId?: string;
     }[],
   ): number {
-    const existing = new Map<string, number[]>();
+    const existing = new Map<string, { t: number; text: string | null }[]>();
     for (const kind of new Set(entries.map((e) => e.kind))) {
       existing.set(
         kind,
         this.db
-          .all<{ date_unix_ms: number }>(
-            `SELECT date_unix_ms FROM entries WHERE kind = ?`,
+          .all<{ date_unix_ms: number; value_text: string | null }>(
+            `SELECT date_unix_ms, value_text FROM entries WHERE kind = ?`,
             [kind],
           )
-          .map((r) => r.date_unix_ms),
+          .map((r) => ({ t: r.date_unix_ms, text: r.value_text })),
       );
     }
     let added = 0;
     for (const candidate of entries) {
+      // Notes additionally compare their text: all notes share one kind, so
+      // kind+time alone would silently drop a *different* note that happens
+      // to sit within the window (the window exists for dual-written health
+      // samples, which notes never are).
       const nearby = (existing.get(candidate.kind) ?? []).some(
-        (t) => Math.abs(t - candidate.date.getTime()) <= IMPORT_DEDUP_WINDOW_MS,
+        (row) =>
+          Math.abs(row.t - candidate.date.getTime()) <=
+            IMPORT_DEDUP_WINDOW_MS &&
+          (candidate.kind !== "note" ||
+            row.text === (candidate.valueText ?? null)),
       );
       if (nearby) continue;
       this.db.run(
-        `INSERT INTO entries (id, kind, value, date, date_unix_ms, logged_at, backend, backend_id, backend_synced_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO entries (id, kind, value, value_text, date, date_unix_ms, logged_at, backend, backend_id, backend_synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           this.newId(),
           candidate.kind,
           candidate.value,
+          candidate.valueText ?? null,
           toLocalISOString(candidate.date),
           candidate.date.getTime(),
           // Original logging time is often unrecoverable for imports; the
@@ -242,6 +259,7 @@ export class EntryStore {
         id: row.id,
         kind: row.kind,
         rating: row.value,
+        ...(row.value_text === null ? {} : { text: row.value_text }),
         date: row.date,
         loggedAt: row.logged_at,
       }));

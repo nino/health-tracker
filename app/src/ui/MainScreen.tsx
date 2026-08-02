@@ -11,11 +11,15 @@ import {
 } from "../app/queries";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
 import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
+import { NOTE } from "../catalog/note";
 import { nextUp } from "../lib/nextUp";
 import { weightedRandomByRecency } from "../lib/randomPick";
+import { customEntryKind, type CustomItem } from "../store/customItems";
+import { EventLogSheet } from "./EventLogSheet";
 import { HistorySheet } from "./HistorySheet";
 import { InfoSheet } from "./InfoSheet";
 import { MetricLogSheet } from "./MetricLogSheet";
+import { NoteLogSheet } from "./NoteLogSheet";
 import { SettingsSheet } from "./SettingsSheet";
 import { SymptomLogSheet } from "./SymptomLogSheet";
 import { Tile, PlainTile } from "./Tile";
@@ -38,6 +42,8 @@ export function MainScreen() {
   const now = useMinuteTick();
   const [selectedSymptom, setSelectedSymptom] = useState<Symptom | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CustomItem | null>(null);
+  const [showingNote, setShowingNote] = useState(false);
   const [showingSettings, setShowingSettings] = useState(false);
   const [showingInfo, setShowingInfo] = useState(false);
   const [showingHistory, setShowingHistory] = useState(false);
@@ -60,6 +66,8 @@ export function MainScreen() {
       .map(customItemToSymptom),
   ].sort((a, b) => a.name.localeCompare(b.name));
   const gridMetrics = [...METRICS, ...customMetrics];
+  // Events already sort alphabetically (listCustomItems orders by name).
+  const eventItems = custom.filter((item) => item.kind === "event");
   const dates = lastDates.data ?? new Map<string, Date>();
 
   const pickRandom = () => {
@@ -68,6 +76,8 @@ export function MainScreen() {
   };
 
   // Grid order for Save & Next: metrics first, then enabled symptoms.
+  // Events and the note tile stay out: next-up is for things always worth
+  // logging, and there is no "didn't happen" log.
   const gridItems: (Metric | Symptom)[] = [...gridMetrics, ...enabledSymptoms];
   const currentKind = selectedMetric?.id ?? selectedSymptom?.id ?? "";
   const nextAvailable =
@@ -145,6 +155,21 @@ export function MainScreen() {
             onPress={() => setSelectedSymptom(symptom)}
           />
         ))}
+        {eventItems.map((item) => (
+          <Tile
+            key={item.id}
+            title={item.name}
+            icon={item.icon}
+            lastDate={dates.get(customEntryKind(item.id)) ?? null}
+            now={now}
+            onPress={() => setSelectedEvent(item)}
+          />
+        ))}
+        <PlainTile
+          title={NOTE.name}
+          icon={NOTE.icon}
+          onPress={() => setShowingNote(true)}
+        />
         {enabledSymptoms.length > 0 && (
           <PlainTile title="Random" icon="🎲" onPress={pickRandom} />
         )}
@@ -173,6 +198,14 @@ export function MainScreen() {
           onSaveAndNext={advanceToNext}
         />
       )}
+      {selectedEvent && (
+        <EventLogSheet
+          key={selectedEvent.id}
+          item={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+        />
+      )}
+      {showingNote && <NoteLogSheet onClose={() => setShowingNote(false)} />}
       {showingSettings && (
         <SettingsSheet onClose={() => setShowingSettings(false)} />
       )}
