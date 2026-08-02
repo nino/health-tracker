@@ -185,8 +185,13 @@ describe("fuzz: round-trips", () => {
           store.add(item.kind, item.value, new Date(t));
         }
 
-        const restored = new EntryStore(memoryDriver(), sequentialIds());
-        const result = importEntriesFromJSON(restored, store.exportJSON());
+        const restoredDb = memoryDriver();
+        const restored = new EntryStore(restoredDb, sequentialIds());
+        const result = importEntriesFromJSON(
+          restored,
+          restoredDb,
+          store.exportJSON(),
+        );
         expect(result.added).toBe(contents.length);
         expect(result.skippedUnknownKinds).toBe(0);
         for (const kind of new Set(contents.map((c) => c.kind))) {

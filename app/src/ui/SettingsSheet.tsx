@@ -7,8 +7,10 @@ import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 
 import { appDb, entryStore } from "../app/appDb";
 import { SYMPTOMS } from "../catalog";
+import { listCustomItems, type CustomItem } from "../store/customItems";
 import { getEnabledSymptomIds, setEnabledSymptomIds } from "../store/settings";
 import { importEntriesFromJSON } from "../store/swiftImport";
+import { CustomItemSheet } from "./CustomItemSheet";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
@@ -16,11 +18,17 @@ export function SettingsSheet(props: { onClose: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [importResult, setImportResult] = useState<string | null>(null);
+  // null = closed, "new" = creating, otherwise editing that item.
+  const [editing, setEditing] = useState<CustomItem | "new" | null>(null);
   const enabled = useQuery({
     queryKey: ["enabledSymptomIds"],
     queryFn: () => getEnabledSymptomIds(appDb),
   });
   const enabledSet = new Set(enabled.data ?? []);
+  const customItems = useQuery({
+    queryKey: ["customItems"],
+    queryFn: () => listCustomItems(appDb),
+  });
 
   const toggle = (id: string, on: boolean) => {
     const next = new Set(enabledSet);
@@ -60,10 +68,12 @@ export function SettingsSheet(props: { onClose: () => void }) {
         : await new File(asset.uri).text();
       const { added, skippedUnknownKinds } = importEntriesFromJSON(
         entryStore,
+        appDb,
         json,
       );
       void queryClient.invalidateQueries({ queryKey: ["lastDates"] });
       void queryClient.invalidateQueries({ queryKey: ["entries"] });
+      void queryClient.invalidateQueries({ queryKey: ["customItems"] });
       setImportResult(
         skippedUnknownKinds > 0
           ? `Imported ${added} entries (${skippedUnknownKinds} of an unknown type skipped).`
@@ -104,6 +114,50 @@ export function SettingsSheet(props: { onClose: () => void }) {
         </Text>
       )}
       <Text style={[styles.hint, { color: theme.secondaryText }]}>
+        Custom items always appear on the main screen; archive one to remove it
+        (its history stays).
+      </Text>
+      <View
+        style={[
+          styles.list,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
+        {(customItems.data ?? []).map((item, index) => (
+          <Pressable
+            key={item.id}
+            style={[
+              styles.row,
+              index > 0 && {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: theme.border,
+              },
+            ]}
+            onPress={() => setEditing(item)}
+          >
+            <Text style={styles.icon}>{item.icon}</Text>
+            <Text style={[styles.name, { color: theme.text }]}>
+              {item.name}
+            </Text>
+            <Text style={{ color: theme.secondaryText }}>
+              {item.kind === "severity" ? "Severity" : "1–10"}
+            </Text>
+          </Pressable>
+        ))}
+        <Pressable
+          style={[
+            styles.row,
+            (customItems.data ?? []).length > 0 && {
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: theme.border,
+            },
+          ]}
+          onPress={() => setEditing("new")}
+        >
+          <Text style={{ color: theme.tint }}>Add custom item…</Text>
+        </Pressable>
+      </View>
+      <Text style={[styles.hint, { color: theme.secondaryText }]}>
         Enabled symptoms appear on the main screen.
       </Text>
       <View
@@ -134,6 +188,12 @@ export function SettingsSheet(props: { onClose: () => void }) {
           </View>
         ))}
       </View>
+      {editing !== null && (
+        <CustomItemSheet
+          item={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </SheetModal>
   );
 }

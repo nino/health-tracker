@@ -46,6 +46,9 @@ describe("migrations", () => {
     insert("a0", "anxiety", 0);
     // Severity/presence "Present" is raw value 0 — v4 must not touch it.
     insert("h0", "HKCategoryTypeIdentifierHeadache", 0);
+    // Rewind to v3: later migrations (v5's CREATE TABLE) must be dropped
+    // first or the replay would collide with their previous run.
+    db.run("DROP TABLE custom_items");
     setUserVersion(db, 3);
 
     migrate(db);

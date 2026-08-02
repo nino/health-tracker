@@ -41,6 +41,21 @@ const MIGRATIONS: string[][] = [
   [
     `UPDATE entries SET value = 1 WHERE kind IN ('stress', 'anxiety') AND value = 0`,
   ],
+  // v5: user-defined trackable items (issue #5). Their entries use kind
+  // "custom:<id>". Deletion is archival only — entries keep their meaning.
+  // sort_order is unused until manual reordering lands.
+  [
+    `CREATE TABLE custom_items (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      high_is_good INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      archived_at TEXT
+    )`,
+  ],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

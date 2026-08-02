@@ -5,8 +5,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { appDb, entryStore } from "../app/appDb";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
+import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
 import { nextUp } from "../lib/nextUp";
 import { weightedRandomByRecency } from "../lib/randomPick";
+import { listCustomItems } from "../store/customItems";
 import { getEnabledSymptomIds } from "../store/settings";
 import { HistorySheet } from "./HistorySheet";
 import { InfoSheet } from "./InfoSheet";
@@ -45,10 +47,25 @@ export function MainScreen() {
     queryKey: ["enabledSymptomIds"],
     queryFn: () => getEnabledSymptomIds(appDb),
   });
+  const customItems = useQuery({
+    queryKey: ["customItems"],
+    queryFn: () => listCustomItems(appDb),
+  });
 
-  const enabledSymptoms = SYMPTOMS.filter((s) =>
-    (enabledIds.data ?? []).includes(s.id),
-  );
+  // Custom items are always on (archiving removes them); they slot in
+  // alphabetically — rating items after the built-in metrics, severity items
+  // merged into the symptom list.
+  const custom = customItems.data ?? [];
+  const customMetrics = custom
+    .filter((item) => item.kind === "rating")
+    .map(customItemToMetric);
+  const enabledSymptoms = [
+    ...SYMPTOMS.filter((s) => (enabledIds.data ?? []).includes(s.id)),
+    ...custom
+      .filter((item) => item.kind === "severity")
+      .map(customItemToSymptom),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  const gridMetrics = [...METRICS, ...customMetrics];
   const dates = lastDates.data ?? new Map<string, Date>();
 
   const pickRandom = () => {
@@ -57,7 +74,7 @@ export function MainScreen() {
   };
 
   // Grid order for Save & Next: metrics first, then enabled symptoms.
-  const gridItems: (Metric | Symptom)[] = [...METRICS, ...enabledSymptoms];
+  const gridItems: (Metric | Symptom)[] = [...gridMetrics, ...enabledSymptoms];
   const currentKind = selectedMetric?.id ?? selectedSymptom?.id ?? "";
   const nextAvailable =
     nextUp(gridItems, currentKind, dates, now) !== undefined;
@@ -114,7 +131,7 @@ export function MainScreen() {
           { paddingBottom: insets.bottom + 16 },
         ]}
       >
-        {METRICS.map((metric) => (
+        {gridMetrics.map((metric) => (
           <Tile
             key={metric.id}
             title={metric.name}

@@ -73,7 +73,51 @@ export function generateDemoExport(): string {
         11,
       );
     }
+    // Custom items (issue #5): a rating item and a severity item.
+    add(
+      `custom:${ENERGY_ID}`,
+      clamp(1, 10, 6 + wave + (rand() - 0.5) * 4),
+      day,
+      10,
+    );
+    if (rand() < 0.4) {
+      const severities = [1, 1, 2, 2, 3];
+      add(
+        `custom:${TINNITUS_ID}`,
+        severities[Math.floor(rand() * severities.length)],
+        day,
+        16,
+      );
+    }
   }
 
-  return JSON.stringify({ exportedAt: iso(new Date(2026, 6, 28, 8)), entries });
+  const customItems = [
+    {
+      id: ENERGY_ID,
+      name: "Energy",
+      icon: "⚡",
+      kind: "rating",
+      highIsGood: true,
+      createdAt: iso(new Date(2026, 4, 18, 8)),
+      archivedAt: null,
+    },
+    {
+      id: TINNITUS_ID,
+      name: "Tinnitus",
+      icon: "🔔",
+      kind: "severity",
+      highIsGood: false,
+      createdAt: iso(new Date(2026, 4, 18, 8)),
+      archivedAt: null,
+    },
+  ];
+
+  return JSON.stringify({
+    exportedAt: iso(new Date(2026, 6, 28, 8)),
+    entries,
+    customItems,
+  });
 }
+
+const ENERGY_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000001";
+const TINNITUS_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000002";

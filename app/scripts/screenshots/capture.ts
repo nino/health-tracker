@@ -82,6 +82,12 @@ await page.getByText("⚙️").click();
 await page.getByText("Export data as JSON").waitFor();
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("settings") });
+// .last(): the main grid behind the modal also shows a Tinnitus tile.
+await page.getByText("Tinnitus").last().click();
+await page.getByText("Edit Custom Item").waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("custom-item-edit") });
+await page.getByText("Cancel").click();
 await page.getByText("Done").click();
 await page.getByText("Log Symptom").waitFor();
 

@@ -4,6 +4,8 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { appDb, entryStore } from "../app/appDb";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
+import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
+import { listCustomItems } from "../store/customItems";
 import {
   aggregatePoints,
   CHART_MODES,
@@ -113,9 +115,18 @@ export function HistorySheet(props: { onClose: () => void }) {
     queryKey: ["enabledSymptomIds"],
     queryFn: () => getEnabledSymptomIds(appDb),
   });
-  const enabledSymptoms = SYMPTOMS.filter((s) =>
-    (enabledIds.data ?? []).includes(s.id),
-  );
+  const customItems = useQuery({
+    queryKey: ["customItems"],
+    queryFn: () => listCustomItems(appDb),
+  });
+  const custom = customItems.data ?? [];
+  const enabledSymptoms = [
+    ...SYMPTOMS.filter((s) => (enabledIds.data ?? []).includes(s.id)),
+    ...custom
+      .filter((item) => item.kind === "severity")
+      .map(customItemToSymptom),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  const customRating = custom.filter((item) => item.kind === "rating");
 
   return (
     <SheetModal visible title="History" onClose={props.onClose}>
@@ -124,9 +135,17 @@ export function HistorySheet(props: { onClose: () => void }) {
         value={mode}
         onChange={setMode}
       />
-      {/* Mood is high-is-good (green); stress/anxiety are high-is-bad. */}
+      {/* Mood is high-is-good (green); stress/anxiety are high-is-bad.
+          Custom ratings follow their own high-is-good switch. */}
       {METRICS.map((metric) =>
         metricChart(metric, mode, metric.id === "mood" ? "#34c759" : "#ff9500"),
+      )}
+      {customRating.map((item) =>
+        metricChart(
+          customItemToMetric(item),
+          mode,
+          item.highIsGood ? "#34c759" : "#ff9500",
+        ),
       )}
       {enabledSymptoms.map((symptom) =>
         symptomChart(symptom, mode, theme.tint),

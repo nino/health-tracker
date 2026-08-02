@@ -232,7 +232,9 @@ export class EntryStore {
   }
 
   /** JSON export — a superset of the Swift app's metric-log.json format
-   * (kind/rating/date/loggedAt), so existing tooling keeps working. */
+   * (kind/rating/date/loggedAt), so existing tooling keeps working.
+   * customItems (archived ones included — their entries are in the file)
+   * makes "custom:<id>" entries restorable on a fresh device. */
   exportJSON(now: Date = new Date()): string {
     const entries = this.db
       .all<EntryRow>(`SELECT * FROM entries ORDER BY date_unix_ms`)
@@ -243,8 +245,27 @@ export class EntryStore {
         date: row.date,
         loggedAt: row.logged_at,
       }));
+    const customItems = this.db
+      .all<{
+        id: string;
+        name: string;
+        icon: string;
+        kind: string;
+        high_is_good: number;
+        created_at: string;
+        archived_at: string | null;
+      }>(`SELECT * FROM custom_items ORDER BY name`)
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        icon: row.icon,
+        kind: row.kind,
+        highIsGood: row.high_is_good !== 0,
+        createdAt: row.created_at,
+        archivedAt: row.archived_at,
+      }));
     return JSON.stringify(
-      { exportedAt: toLocalISOString(now), entries },
+      { exportedAt: toLocalISOString(now), entries, customItems },
       null,
       2,
     );

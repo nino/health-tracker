@@ -1,0 +1,12 @@
+{
+  "name": "health-tracker-root",
+  "private": true,
+  "//": "Guard: from a directory without a package.json, `bun run <x>` falls back to PATH binaries (see CLAUDE.md). These scripts forward to app/ instead.",
+  "scripts": {
+    "test": "cd app && bun run test",
+    "typecheck": "cd app && bun run typecheck",
+    "lint": "cd app && bun run lint",
+    "format": "cd app && bun run format",
+    "format:check": "cd app && bun run format:check"
+  }
+}
