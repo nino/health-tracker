@@ -43,3 +43,4 @@ yarn-error.*
 # gradle build output of the local expo modules
 modules/*/android/build/
 modules/*/android/.cxx/
+modules/*/android/.gradle/
