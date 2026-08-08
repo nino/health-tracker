@@ -111,6 +111,42 @@ describe("EntryStore", () => {
     ]);
   });
 
+  test("text custom-item entries dedup by text, like notes", () => {
+    const store = freshStore();
+    const base = new Date("2026-07-12T10:00:00+02:00");
+    store.add("custom:dishes", 0, base, base, "went fine");
+
+    const added = store.import([
+      {
+        kind: "custom:dishes",
+        value: 0,
+        valueText: "went fine",
+        date: new Date(base.getTime() + 1000),
+      },
+      {
+        kind: "custom:dishes",
+        value: 0,
+        valueText: "hated every second",
+        date: new Date(base.getTime() + 1000),
+      },
+    ]);
+    expect(added).toBe(1);
+    expect(store.byKind("custom:dishes").map((e) => e.valueText)).toEqual([
+      "went fine",
+      "hated every second",
+    ]);
+  });
+
+  test("numeric values keep their decimals through add and export", () => {
+    const store = freshStore();
+    store.add("custom:weight", 72.4, new Date("2026-07-12T09:41:00+02:00"));
+    expect(store.byKind("custom:weight")[0].value).toBe(72.4);
+    const exported = JSON.parse(store.exportJSON()) as {
+      entries: { rating: number }[];
+    };
+    expect(exported.entries[0].rating).toBe(72.4);
+  });
+
   test("note entries round-trip their text through add, export, and import", () => {
     const store = freshStore();
     store.add(

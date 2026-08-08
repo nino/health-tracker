@@ -3,39 +3,38 @@ import { useState } from "react";
 import { StyleSheet, TextInput } from "react-native";
 
 import { saveEntry } from "../app/health";
-import { NOTE } from "../catalog/note";
 import { customEntryKind, type CustomItem } from "../store/customItems";
 import { PlainButton, PrimaryButton } from "./Buttons";
 import { DateField } from "./DateField";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
-/** Free-text log sheet: the built-in quick note (no `item` — truly one-off
- * events, kind "note") and text custom items (kind "custom:<id>" — repeated
- * thoughts on one topic). Either way value 0, text in value_text, not part
- * of next-up, no chart. */
-export function NoteLogSheet(props: {
-  item?: CustomItem;
+/** Log sheet for numeric custom items: type any number (reps, weight,
+ * minutes — decimals allowed). Like events, numeric items stay out of
+ * next-up (there is no "didn't do any" log), so there is no Save & Next. */
+export function NumericLogSheet(props: {
+  item: CustomItem;
   onClose: () => void;
 }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [date, setDate] = useState(() => new Date());
-  const { icon, name } = props.item ?? NOTE;
-  const kind = props.item ? customEntryKind(props.item.id) : NOTE.id;
+
+  // Some locales' decimal-pad offers only a comma.
+  const value = Number(text.trim().replace(",", "."));
+  const valid = text.trim() !== "" && Number.isFinite(value);
 
   const save = () => {
-    const trimmed = text.trim();
-    if (trimmed === "") return;
-    saveEntry(queryClient, kind, 0, date, trimmed);
+    if (!valid) return;
+    saveEntry(queryClient, customEntryKind(props.item.id), value, date);
     props.onClose();
   };
 
   return (
     <SheetModal
       visible
-      title={`${icon} ${name}`}
+      title={`${props.item.icon} ${props.item.name}`}
       onClose={props.onClose}
       closeLabel={null}
     >
@@ -50,17 +49,13 @@ export function NoteLogSheet(props: {
         ]}
         value={text}
         onChangeText={setText}
-        placeholder="What happened?"
+        placeholder="0"
         placeholderTextColor={theme.secondaryText}
-        multiline
+        keyboardType="decimal-pad"
         autoFocus
       />
       <DateField label="Date" value={date} onChange={setDate} />
-      <PrimaryButton
-        label="Save"
-        onPress={save}
-        disabled={text.trim() === ""}
-      />
+      <PrimaryButton label="Save" onPress={save} disabled={!valid} />
       <PlainButton label="Cancel" onPress={props.onClose} />
     </SheetModal>
   );
@@ -68,11 +63,11 @@ export function NoteLogSheet(props: {
 
 const styles = StyleSheet.create({
   input: {
-    minHeight: 88,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 12,
-    fontSize: 16,
-    textAlignVertical: "top",
+    fontSize: 22,
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
   },
 });

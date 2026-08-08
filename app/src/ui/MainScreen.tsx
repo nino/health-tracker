@@ -20,6 +20,7 @@ import { HistorySheet } from "./HistorySheet";
 import { InfoSheet } from "./InfoSheet";
 import { MetricLogSheet } from "./MetricLogSheet";
 import { NoteLogSheet } from "./NoteLogSheet";
+import { NumericLogSheet } from "./NumericLogSheet";
 import { SettingsSheet } from "./SettingsSheet";
 import { SymptomLogSheet } from "./SymptomLogSheet";
 import { Tile, PlainTile } from "./Tile";
@@ -42,7 +43,9 @@ export function MainScreen() {
   const now = useMinuteTick();
   const [selectedSymptom, setSelectedSymptom] = useState<Symptom | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<CustomItem | null>(null);
+  // Event, numeric, and text items share one selection; the sheet is picked
+  // by kind. (Severity/rating items flow through the symptom/metric states.)
+  const [selectedCustom, setSelectedCustom] = useState<CustomItem | null>(null);
   const [showingNote, setShowingNote] = useState(false);
   const [showingSettings, setShowingSettings] = useState(false);
   const [showingInfo, setShowingInfo] = useState(false);
@@ -66,8 +69,12 @@ export function MainScreen() {
       .map(customItemToSymptom),
   ].sort((a, b) => a.name.localeCompare(b.name));
   const gridMetrics = [...METRICS, ...customMetrics];
-  // Events already sort alphabetically (listCustomItems orders by name).
-  const eventItems = custom.filter((item) => item.kind === "event");
+  // Events, numeric, and text items tile after the symptoms; they already
+  // sort alphabetically (listCustomItems orders by name).
+  const otherItems = custom.filter(
+    (item) =>
+      item.kind === "event" || item.kind === "numeric" || item.kind === "text",
+  );
   const dates = lastDates.data ?? new Map<string, Date>();
 
   const pickRandom = () => {
@@ -155,14 +162,14 @@ export function MainScreen() {
             onPress={() => setSelectedSymptom(symptom)}
           />
         ))}
-        {eventItems.map((item) => (
+        {otherItems.map((item) => (
           <Tile
             key={item.id}
             title={item.name}
             icon={item.icon}
             lastDate={dates.get(customEntryKind(item.id)) ?? null}
             now={now}
-            onPress={() => setSelectedEvent(item)}
+            onPress={() => setSelectedCustom(item)}
           />
         ))}
         <PlainTile
@@ -198,11 +205,25 @@ export function MainScreen() {
           onSaveAndNext={advanceToNext}
         />
       )}
-      {selectedEvent && (
+      {selectedCustom?.kind === "event" && (
         <EventLogSheet
-          key={selectedEvent.id}
-          item={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
+          key={selectedCustom.id}
+          item={selectedCustom}
+          onClose={() => setSelectedCustom(null)}
+        />
+      )}
+      {selectedCustom?.kind === "numeric" && (
+        <NumericLogSheet
+          key={selectedCustom.id}
+          item={selectedCustom}
+          onClose={() => setSelectedCustom(null)}
+        />
+      )}
+      {selectedCustom?.kind === "text" && (
+        <NoteLogSheet
+          key={selectedCustom.id}
+          item={selectedCustom}
+          onClose={() => setSelectedCustom(null)}
         />
       )}
       {showingNote && <NoteLogSheet onClose={() => setShowingNote(false)} />}
