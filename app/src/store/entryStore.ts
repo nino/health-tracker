@@ -8,7 +8,8 @@ export interface Entry {
   id: string;
   kind: string;
   value: number;
-  /** Free text — quick-note entries (kind "note") only, null elsewhere. */
+  /** Free text — quick-note entries (kind "note") and text custom items
+   * only, null elsewhere. */
   valueText: string | null;
   /** The user-set sample date (may be backdated). */
   date: Date;
@@ -213,16 +214,16 @@ export class EntryStore {
     }
     let added = 0;
     for (const candidate of entries) {
-      // Notes additionally compare their text: all notes share one kind, so
-      // kind+time alone would silently drop a *different* note that happens
-      // to sit within the window (the window exists for dual-written health
-      // samples, which notes never are).
+      // Text-carrying entries (notes, text custom items) additionally
+      // compare their text: kind+time alone would silently drop a
+      // *different* thought that happens to sit within the window (the
+      // window exists for dual-written health samples, which text entries
+      // never are).
       const nearby = (existing.get(candidate.kind) ?? []).some(
         (row) =>
           Math.abs(row.t - candidate.date.getTime()) <=
             IMPORT_DEDUP_WINDOW_MS &&
-          (candidate.kind !== "note" ||
-            row.text === (candidate.valueText ?? null)),
+          (candidate.valueText == null || row.text === candidate.valueText),
       );
       if (nearby) continue;
       this.db.run(

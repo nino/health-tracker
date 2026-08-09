@@ -15,7 +15,7 @@ import {
   weeklyCounts,
   type ChartMode,
 } from "../lib/chartAggregate";
-import { type ChartInputPoint } from "../lib/chartGeometry";
+import { numericDomain, type ChartInputPoint } from "../lib/chartGeometry";
 import { customEntryKind, type CustomItem } from "../store/customItems";
 import { BarChart } from "./BarChart";
 import { LineChart } from "./LineChart";
@@ -110,6 +110,95 @@ function symptomChart(symptom: Symptom, mode: ChartMode, color: string) {
   );
 }
 
+// Numeric items are the one chart without a fixed y-domain: the values
+// share no scale (press-ups vs body weight), so the domain derives from the
+// aggregated data. The display-mode control applies as usual.
+function NumericChartCard(props: {
+  item: CustomItem;
+  mode: ChartMode;
+  color: string;
+}) {
+  const theme = useTheme();
+  const kind = customEntryKind(props.item.id);
+  const entries = useQuery(entriesByKindOptions(kind));
+  const points = aggregatePoints(
+    (entries.data ?? []).map((e) => ({ date: e.date, value: e.value })),
+    props.mode,
+  );
+  const domain = numericDomain(points.map((p) => p.value));
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
+      <Text style={[styles.cardTitle, { color: theme.text }]}>
+        {props.item.icon} {props.item.name}
+      </Text>
+      {points.length === 0 ? (
+        <Text style={[styles.empty, { color: theme.secondaryText }]}>
+          Nothing logged yet.
+        </Text>
+      ) : (
+        <LineChart
+          points={points}
+          yMin={domain.min}
+          yMax={domain.max}
+          color={props.color}
+        />
+      )}
+    </View>
+  );
+}
+
+// Text items don't chart — history shows the notes themselves, newest
+// first, capped so one prolific topic can't make the sheet unscrollable.
+const MAX_TEXT_ENTRIES = 20;
+
+function TextHistoryCard(props: { item: CustomItem }) {
+  const theme = useTheme();
+  const kind = customEntryKind(props.item.id);
+  const entries = useQuery(entriesByKindOptions(kind));
+  const all = entries.data ?? [];
+  const latest = all.slice(-MAX_TEXT_ENTRIES).reverse();
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
+      <Text style={[styles.cardTitle, { color: theme.text }]}>
+        {props.item.icon} {props.item.name}
+      </Text>
+      {latest.length === 0 ? (
+        <Text style={[styles.empty, { color: theme.secondaryText }]}>
+          Nothing logged yet.
+        </Text>
+      ) : (
+        latest.map((entry) => (
+          <View key={entry.id} style={styles.textEntry}>
+            <Text
+              style={[styles.textEntryDate, { color: theme.secondaryText }]}
+            >
+              {entry.date.toLocaleDateString()}
+            </Text>
+            <Text style={{ color: theme.text }}>{entry.valueText}</Text>
+          </View>
+        ))
+      )}
+      {all.length > MAX_TEXT_ENTRIES && (
+        <Text style={[styles.empty, { color: theme.secondaryText }]}>
+          Showing the latest {MAX_TEXT_ENTRIES} of {all.length}.
+        </Text>
+      )}
+    </View>
+  );
+}
+
 // Event items chart as occurrences per week — the display-mode control
 // doesn't apply (a raw scatter of "1" carries no information).
 function EventChartCard(props: { item: CustomItem; color: string }) {
@@ -175,6 +264,16 @@ export function HistorySheet(props: { onClose: () => void }) {
           item.highIsGood ? "#34c759" : "#ff9500",
         ),
       )}
+      {custom
+        .filter((item) => item.kind === "numeric")
+        .map((item) => (
+          <NumericChartCard
+            key={item.id}
+            item={item}
+            mode={mode}
+            color={theme.tint}
+          />
+        ))}
       {enabledSymptoms.map((symptom) =>
         symptomChart(symptom, mode, theme.tint),
       )}
@@ -182,6 +281,11 @@ export function HistorySheet(props: { onClose: () => void }) {
         .filter((item) => item.kind === "event")
         .map((item) => (
           <EventChartCard key={item.id} item={item} color={theme.tint} />
+        ))}
+      {custom
+        .filter((item) => item.kind === "text")
+        .map((item) => (
+          <TextHistoryCard key={item.id} item={item} />
         ))}
     </SheetModal>
   );
@@ -196,4 +300,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontWeight: "600" },
   empty: { fontSize: 13 },
+  textEntry: { gap: 1 },
+  textEntryDate: { fontSize: 11 },
 });

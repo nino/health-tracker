@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { downsample, scalePoints } from "./chartGeometry";
+import { downsample, numericDomain, scalePoints } from "./chartGeometry";
 
 describe("scalePoints", () => {
   test("empty input stays empty", () => {
@@ -39,6 +39,15 @@ describe("scalePoints", () => {
     expect([...thinned].sort((a, b) => a - b)).toEqual(thinned);
     // Under the cap: untouched.
     expect(downsample([1, 2, 3], 400)).toEqual([1, 2, 3]);
+  });
+
+  test("numericDomain snaps to integers and never collapses to zero span", () => {
+    expect(numericDomain([])).toEqual({ min: 0, max: 1 });
+    expect(numericDomain([72.4, 71.8, 73.1])).toEqual({ min: 71, max: 74 });
+    // A flat series (every log "15 press-ups") pads ±1 to stay plottable.
+    expect(numericDomain([15, 15, 15])).toEqual({ min: 14, max: 16 });
+    // No forced zero baseline: weight around 72 must not flatline at the top.
+    expect(numericDomain([-2.5, 3])).toEqual({ min: -3, max: 3 });
   });
 
   test("y respects a fixed domain and clamps out-of-domain values", () => {

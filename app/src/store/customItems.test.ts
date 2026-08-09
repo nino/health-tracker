@@ -94,6 +94,33 @@ describe("customItems", () => {
     expect(all[0].archivedAt).not.toBeNull();
   });
 
+  test("numeric and text kinds round-trip; highIsGood stays rating-only", () => {
+    const db = freshDb();
+    const newId = sequentialIds();
+    const numeric = addCustomItem(db, newId, {
+      name: "Press-ups",
+      icon: "💪",
+      kind: "numeric",
+      highIsGood: true, // ignored — rating-only
+    });
+    const text = addCustomItem(db, newId, {
+      name: "Dishes",
+      icon: "🍽️",
+      kind: "text",
+      highIsGood: false,
+    });
+    expect(numeric.highIsGood).toBe(false);
+    const items = listCustomItems(db);
+    expect(items.map((i) => i.kind)).toEqual(["text", "numeric"]);
+    expect(items.every((i) => !i.highIsGood)).toBe(true);
+    updateCustomItem(db, text.id, {
+      name: "Dishes",
+      icon: "🍽️",
+      highIsGood: true, // ignored again
+    });
+    expect(listCustomItems(db)[0].highIsGood).toBe(false);
+  });
+
   test("customEntryKind prefixes and cannot collide with builtin ids", () => {
     expect(customEntryKind("abc")).toBe("custom:abc");
   });

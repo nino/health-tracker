@@ -93,10 +93,16 @@ function validateValue(
   index: number,
   customKinds: Map<string, CustomItemKind>,
 ): number {
-  if (typeof rating !== "number" || !Number.isInteger(rating)) {
-    throw new Error(`Entry ${index} has a non-integer rating`);
+  if (typeof rating !== "number" || !Number.isFinite(rating)) {
+    throw new Error(`Entry ${index} has a non-numeric rating`);
   }
   const customKind = customKinds.get(kind);
+  // Numeric items accept any finite number, decimals included (weight).
+  // Everything else is integer-valued.
+  if (customKind === "numeric") return rating;
+  if (!Number.isInteger(rating)) {
+    throw new Error(`Entry ${index} has a non-integer rating`);
+  }
   if (customKind === "severity") {
     if (!SEVERITY_VALUES.has(rating)) {
       throw new Error(
@@ -117,6 +123,14 @@ function validateValue(
     if (rating !== 1) {
       throw new Error(
         `Entry ${index} has an invalid event value for ${kind}: ${rating}`,
+      );
+    }
+    return rating;
+  }
+  if (customKind === "text") {
+    if (rating !== 0) {
+      throw new Error(
+        `Entry ${index} has a non-zero text-item value: ${rating}`,
       );
     }
     return rating;
@@ -170,7 +184,13 @@ function parseCustomItems(parsed: unknown): CustomItemCandidate[] {
     }
     const record = item as Record<string, unknown>;
     const kind = record.kind;
-    if (kind !== "severity" && kind !== "rating" && kind !== "event") {
+    if (
+      kind !== "severity" &&
+      kind !== "rating" &&
+      kind !== "event" &&
+      kind !== "numeric" &&
+      kind !== "text"
+    ) {
       throw new Error(
         `Custom item ${index} has an unknown kind: ${String(kind)}`,
       );
@@ -244,7 +264,7 @@ export function parseExport(
       date: parseStrictDate(entry.date, index, "date"),
       loggedAt: parseStrictDate(entry.loggedAt, index, "loggedAt"),
     };
-    if (kind === NOTE_KIND) {
+    if (kind === NOTE_KIND || customKinds.get(kind) === "text") {
       if (typeof entry.text !== "string" || entry.text.trim() === "") {
         throw new Error(`Entry ${index} is a note without text`);
       }

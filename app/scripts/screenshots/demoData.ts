@@ -30,15 +30,28 @@ export function generateDemoExport(): string {
   const entries: {
     kind: string;
     rating: number;
+    text?: string;
     date: string;
     loggedAt: string;
   }[] = [];
   const start = new Date(2026, 4, 18); // a Monday, ~10 weeks of data
 
-  const add = (kind: string, rating: number, day: number, hour: number) => {
+  const add = (
+    kind: string,
+    rating: number,
+    day: number,
+    hour: number,
+    text?: string,
+  ) => {
     const d = new Date(2026, 4, 18, hour, Math.floor(rand() * 60));
     d.setDate(start.getDate() + day);
-    entries.push({ kind, rating, date: iso(d), loggedAt: iso(d) });
+    entries.push({
+      kind,
+      rating,
+      ...(text === undefined ? {} : { text }),
+      date: iso(d),
+      loggedAt: iso(d),
+    });
   };
   const clamp = (min: number, max: number, v: number) =>
     Math.min(max, Math.max(min, Math.round(v)));
@@ -92,6 +105,31 @@ export function generateDemoExport(): string {
         16,
       );
     }
+    // New kinds: a numeric item (decimals, slow drift) and a text item.
+    if (rand() < 0.7) {
+      add(
+        `custom:${WEIGHT_ID}`,
+        Math.round((72 + wave + (rand() - 0.5) * 1.5) * 10) / 10,
+        day,
+        7,
+      );
+    }
+    if (rand() < 0.35) {
+      const thoughts = [
+        "Went fine, mind wandered a bit.",
+        "Dreaded it all day, then it took five minutes.",
+        "Actually relaxing today.",
+        "Annoyed — the pan was still greasy.",
+        "Listened to a podcast, barely noticed doing them.",
+      ];
+      add(
+        `custom:${DISHES_ID}`,
+        0,
+        day,
+        19,
+        thoughts[Math.floor(rand() * thoughts.length)],
+      );
+    }
   }
 
   const customItems = [
@@ -122,6 +160,24 @@ export function generateDemoExport(): string {
       createdAt: iso(new Date(2026, 4, 18, 8)),
       archivedAt: null,
     },
+    {
+      id: WEIGHT_ID,
+      name: "Weight",
+      icon: "⚖️",
+      kind: "numeric",
+      highIsGood: false,
+      createdAt: iso(new Date(2026, 4, 18, 8)),
+      archivedAt: null,
+    },
+    {
+      id: DISHES_ID,
+      name: "Dishes",
+      icon: "🍽️",
+      kind: "text",
+      highIsGood: false,
+      createdAt: iso(new Date(2026, 4, 18, 8)),
+      archivedAt: null,
+    },
   ];
 
   return JSON.stringify({
@@ -134,3 +190,5 @@ export function generateDemoExport(): string {
 const ENERGY_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000001";
 const TINNITUS_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000002";
 const FLOSSED_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000003";
+const WEIGHT_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000004";
+const DISHES_ID = "0e2e6f0a-6a1c-4c1e-9f4e-000000000005";

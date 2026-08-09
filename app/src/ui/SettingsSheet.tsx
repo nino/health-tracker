@@ -14,7 +14,7 @@ import {
   settingsKeys,
 } from "../app/queries";
 import { SYMPTOMS } from "../catalog";
-import { type CustomItem } from "../store/customItems";
+import { CUSTOM_KIND_LABELS, type CustomItem } from "../store/customItems";
 import { setEnabledSymptomIds } from "../store/settings";
 import { importEntriesFromJSON } from "../store/swiftImport";
 import { CustomItemSheet } from "./CustomItemSheet";
@@ -143,11 +143,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
               {item.name}
             </Text>
             <Text style={{ color: theme.secondaryText }}>
-              {item.kind === "severity"
-                ? "Severity"
-                : item.kind === "rating"
-                  ? "1–10"
-                  : "Event"}
+              {CUSTOM_KIND_LABELS[item.kind]}
             </Text>
           </Pressable>
         ))}

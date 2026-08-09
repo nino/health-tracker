@@ -19,14 +19,18 @@ import { useTheme } from "./theme";
 
 const KIND_SEGMENTS: readonly { id: CustomItemKind; label: string }[] = [
   { id: "severity", label: "Severity" },
-  { id: "rating", label: "1–10 Rating" },
+  { id: "rating", label: "1–10" },
   { id: "event", label: "Event" },
+  { id: "numeric", label: "Number" },
+  { id: "text", label: "Text" },
 ];
 
 const KIND_DESCRIPTIONS: Record<CustomItemKind, string> = {
   severity: "Severity item — logged like a symptom.",
   rating: "1–10 rating item.",
   event: "Event item — one tap logs “it happened”.",
+  numeric: "Number item — log any value (reps, weight, minutes…).",
+  text: "Text item — write a note each time, all on one topic.",
 };
 
 /** Create or edit a custom item. The kind is fixed after creation — stored
@@ -122,11 +126,16 @@ export function CustomItemSheet(props: {
       </View>
 
       {props.item === null ? (
-        <SegmentedControl
-          segments={KIND_SEGMENTS}
-          value={kind}
-          onChange={setKind}
-        />
+        <>
+          <SegmentedControl
+            segments={KIND_SEGMENTS}
+            value={kind}
+            onChange={setKind}
+          />
+          <Text style={[styles.hint, { color: theme.secondaryText }]}>
+            {KIND_DESCRIPTIONS[kind]}
+          </Text>
+        </>
       ) : (
         <Text style={[styles.hint, { color: theme.secondaryText }]}>
           {KIND_DESCRIPTIONS[props.item.kind]} The kind can&apos;t change after

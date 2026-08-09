@@ -85,6 +85,20 @@ await page.screenshot({ path: name("log-event") });
 await page.getByText("Cancel").click();
 await page.getByText("Log Symptom").waitFor();
 
+await page.getByText("Weight").click();
+await page.getByPlaceholder("0").fill("72.4");
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("log-numeric") });
+await page.getByText("Cancel").click();
+await page.getByText("Log Symptom").waitFor();
+
+await page.getByText("Dishes").click();
+await page.getByPlaceholder("What happened?").waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("log-text-item") });
+await page.getByText("Cancel").click();
+await page.getByText("Log Symptom").waitFor();
+
 await page.getByText("Quick Note").click();
 await page.getByPlaceholder("What happened?").waitFor();
 await page.waitForTimeout(400);
@@ -96,6 +110,12 @@ await page.getByText("⚙️").click();
 await page.getByText("Export data as JSON").waitFor();
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("settings") });
+await page.getByText("Add custom item…").click();
+await page.getByText("New Custom Item").waitFor();
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("custom-item-new") });
+await page.getByText("Cancel").click();
+await page.getByText("Export data as JSON").waitFor();
 // .last(): the main grid behind the modal also shows a Tinnitus tile.
 await page.getByText("Tinnitus").last().click();
 await page.getByText("Edit Custom Item").waitFor();
@@ -115,10 +135,19 @@ await page.screenshot({ path: name("history-day-avg") });
 await page.getByText("Week avg").click();
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-week-avg") });
+// The numeric chart sits between the ratings and the symptoms.
+// .last(): the main grid behind the modal also shows a Weight tile.
+await page.getByText("⚖️ Weight").last().scrollIntoViewIfNeeded();
+await page.waitForTimeout(600);
+await page.screenshot({ path: name("history-numeric") });
 // The event bar chart sits at the bottom of the history sheet.
 await page.getByText("per week").scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
 await page.screenshot({ path: name("history-events") });
+// Text items list their entries last.
+await page.getByText("🍽️ Dishes").last().scrollIntoViewIfNeeded();
+await page.waitForTimeout(600);
+await page.screenshot({ path: name("history-text") });
 
 await browser.close();
 server.stop();
