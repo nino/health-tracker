@@ -10,6 +10,7 @@ import {
   valenceToMoodRating,
   VALUE_KINDS,
 } from "./index";
+import { chartOptions } from "./valueKind";
 
 describe("symptom catalog", () => {
   test("has all 39 HealthKit symptom types", () => {
@@ -66,6 +67,22 @@ describe("value kinds (raw values verified against HKCategoryValues.h)", () => {
     ]);
     // "Present" maps to Unspecified (0), not a presence value.
     expect(VALUE_KINDS.severity.options[1].label).toBe("Present");
+  });
+
+  test("severity's Present is off the chart scale; presence's is not", () => {
+    expect(chartOptions(VALUE_KINDS.severity).map((o) => o.label)).toEqual([
+      "Not Present",
+      "Mild",
+      "Moderate",
+      "Severe",
+    ]);
+    expect(chartOptions(VALUE_KINDS.presence).map((o) => o.label)).toEqual([
+      "Not Present",
+      "Present",
+    ]);
+    expect(chartOptions(VALUE_KINDS.appetite)).toEqual(
+      VALUE_KINDS.appetite.options,
+    );
   });
 
   test("presence options carry HKCategoryValuePresence raw values", () => {

@@ -5,31 +5,44 @@ import Svg, { Circle, Line, Polyline } from "react-native-svg";
 import {
   downsample,
   scalePoints,
+  scaleTime,
+  timeRange,
   type ChartInputPoint,
 } from "../lib/chartGeometry";
 import { useTheme } from "./theme";
 
 const HEIGHT = 140;
 const PAD = 8; // keeps dots at the domain edges fully visible
+const MARKER_ROW = 28; // extra height for the off-scale marker row
 const MAX_POINTS = 400;
 
 // Single-series line/point chart with a fixed y-domain (never derived from
 // the data — mood 1-10 must look like 4/10, not full-scale). Optional
 // yLabels draws a labeled gridline per discrete level (symptom options).
+// Optional markers are dated entries with no position on the y-scale
+// (severity "Present"): drawn as hollow, unconnected dots in a labeled row
+// below the bottom gridline, sharing the line's x-scale.
 export function LineChart(props: {
   points: ChartInputPoint[];
   yMin: number;
   yMax: number;
   color: string;
   yLabels?: string[];
+  markers?: Date[];
+  markerLabel?: string;
 }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const points = downsample(props.points, MAX_POINTS);
-  const scaled = scalePoints(points, props.yMin, props.yMax);
+  const markers = downsample(props.markers ?? [], MAX_POINTS);
+  const range = timeRange([...points.map((p) => p.date), ...markers]);
+  const scaled = scalePoints(points, props.yMin, props.yMax, range);
+  const hasMarkerRow = props.markers !== undefined;
+  const height = hasMarkerRow ? HEIGHT + MARKER_ROW : HEIGHT;
 
   const px = (x: number) => PAD + x * (width - 2 * PAD);
   const py = (y: number) => PAD + (1 - y) * (HEIGHT - 2 * PAD);
+  const markerY = HEIGHT - PAD + MARKER_ROW;
 
   const gridLevels =
     props.yLabels?.map((label, index, all) => ({
@@ -41,17 +54,17 @@ export function LineChart(props: {
       y: (value - props.yMin) / (props.yMax - props.yMin),
     }));
 
-  const first = props.points[0]?.date;
-  const last = props.points[props.points.length - 1]?.date;
+  const first = range.tMin === 0 ? undefined : new Date(range.tMin);
+  const last = range.tMax === 0 ? undefined : new Date(range.tMax);
 
   return (
     <View>
       <View
-        style={styles.plot}
+        style={{ height }}
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       >
         {width > 0 && (
-          <Svg width={width} height={HEIGHT}>
+          <Svg width={width} height={height}>
             {gridLevels.map((level) => (
               <Line
                 key={level.label}
@@ -80,6 +93,17 @@ export function LineChart(props: {
                 fill={props.color}
               />
             ))}
+            {markers.map((date, i) => (
+              <Circle
+                key={`m${i}`}
+                cx={px(scaleTime(date, range))}
+                cy={markerY}
+                r={3}
+                fill="none"
+                stroke={props.color}
+                strokeWidth={1.5}
+              />
+            ))}
           </Svg>
         )}
         <View style={styles.gridLabels} pointerEvents="none">
@@ -94,6 +118,16 @@ export function LineChart(props: {
               {level.label}
             </Text>
           ))}
+          {hasMarkerRow && props.markerLabel && (
+            <Text
+              style={[
+                styles.gridLabel,
+                { color: theme.secondaryText, top: markerY - 13 },
+              ]}
+            >
+              {props.markerLabel}
+            </Text>
+          )}
         </View>
       </View>
       <View style={styles.xLabels}>
@@ -101,7 +135,9 @@ export function LineChart(props: {
           {first ? first.toLocaleDateString() : ""}
         </Text>
         <Text style={[styles.xLabel, { color: theme.secondaryText }]}>
-          {last && last !== first ? last.toLocaleDateString() : ""}
+          {last && last.getTime() !== first?.getTime()
+            ? last.toLocaleDateString()
+            : ""}
         </Text>
       </View>
     </View>
@@ -109,7 +145,6 @@ export function LineChart(props: {
 }
 
 const styles = StyleSheet.create({
-  plot: { height: HEIGHT },
   gridLabels: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   gridLabel: { position: "absolute", right: 0, fontSize: 10 },
   xLabels: { flexDirection: "row", justifyContent: "space-between" },

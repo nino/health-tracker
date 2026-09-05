@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { downsample, numericDomain, scalePoints } from "./chartGeometry";
+import {
+  downsample,
+  numericDomain,
+  scalePoints,
+  scaleTime,
+  timeRange,
+} from "./chartGeometry";
 
 describe("scalePoints", () => {
   test("empty input stays empty", () => {
@@ -63,5 +69,25 @@ describe("scalePoints", () => {
     expect(points[0].y).toBe(0);
     expect(points[1].y).toBe(1);
     expect(points[2].y).toBe(1);
+  });
+});
+
+describe("timeRange / scaleTime", () => {
+  test("a range covering line points and markers aligns both on one x-scale", () => {
+    const d0 = new Date(2026, 0, 1);
+    const d1 = new Date(2026, 0, 2);
+    const d2 = new Date(2026, 0, 3);
+    const range = timeRange([d1, d2, d0]);
+    expect(range).toEqual({ tMin: d0.getTime(), tMax: d2.getTime() });
+    // Line points scaled within the wider range no longer span the full width.
+    expect(scalePoints([{ date: d1, value: 0 }], 0, 1, range)[0].x).toBe(0.5);
+    expect(scaleTime(d0, range)).toBe(0);
+    expect(scaleTime(d2, range)).toBe(1);
+  });
+
+  test("empty and single-date ranges center", () => {
+    expect(timeRange([])).toEqual({ tMin: 0, tMax: 0 });
+    const d = new Date(2026, 0, 1);
+    expect(scaleTime(d, timeRange([d]))).toBe(0.5);
   });
 });

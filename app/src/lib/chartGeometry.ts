@@ -12,20 +12,36 @@ export interface ChartPoint {
   y: number;
 }
 
+export interface TimeRange {
+  tMin: number;
+  tMax: number;
+}
+
+/** The span of `dates` in epoch ms, so a line and a marker row drawn on the
+ * same chart share one x-scale. Empty input gives an empty (0..0) range. */
+export function timeRange(dates: Date[]): TimeRange {
+  if (dates.length === 0) return { tMin: 0, tMax: 0 };
+  const times = dates.map((d) => d.getTime());
+  return { tMin: Math.min(...times), tMax: Math.max(...times) };
+}
+
+/** Maps a date to x in 0..1 within `range`; a zero-width range (a single
+ * point, or all-same-date points) centers horizontally. */
+export function scaleTime(date: Date, range: TimeRange): number {
+  const tSpan = range.tMax - range.tMin;
+  return tSpan === 0 ? 0.5 : (date.getTime() - range.tMin) / tSpan;
+}
+
 export function scalePoints(
   points: ChartInputPoint[],
   yMin: number,
   yMax: number,
+  range: TimeRange = timeRange(points.map((p) => p.date)),
 ): ChartPoint[] {
   if (points.length === 0) return [];
-  const times = points.map((p) => p.date.getTime());
-  const tMin = Math.min(...times);
-  const tMax = Math.max(...times);
-  const tSpan = tMax - tMin;
   const ySpan = yMax - yMin;
   return points.map((p) => ({
-    // A single point (or all-same-date points) centers horizontally.
-    x: tSpan === 0 ? 0.5 : (p.date.getTime() - tMin) / tSpan,
+    x: scaleTime(p.date, range),
     y: ySpan === 0 ? 0.5 : clamp01((p.value - yMin) / ySpan),
   }));
 }

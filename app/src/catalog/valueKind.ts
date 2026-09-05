@@ -8,11 +8,17 @@ export interface SymptomOption {
   label: string;
   /** The raw HKCategoryValue* value written to HealthKit. */
   value: number;
+  /** True for an option that is loggable but has no position on the kind's
+   * ordered scale — severity's "Present" (severity unspecified) is neither
+   * below Mild nor above Not Present. Charts omit it from the y-axis and
+   * skip entries logged with it. */
+  offScale?: true;
 }
 
 export interface ValueKind {
   name: ValueKindName;
-  /** Picker options in display order (charts use the index as the y-axis). */
+  /** Picker options in display order (charts use the index into
+   * `chartOptions()` as the y-axis). */
   options: SymptomOption[];
   sectionTitle: string;
 }
@@ -23,7 +29,7 @@ const severity: ValueKind = {
   name: "severity",
   options: [
     { label: "Not Present", value: 1 },
-    { label: "Present", value: 0 },
+    { label: "Present", value: 0, offScale: true },
     { label: "Mild", value: 2 },
     { label: "Moderate", value: 3 },
     { label: "Severe", value: 4 },
@@ -51,5 +57,10 @@ const appetite: ValueKind = {
   ],
   sectionTitle: "Change",
 };
+
+/** The options that form the kind's ordered scale, for chart axes. */
+export function chartOptions(kind: ValueKind): SymptomOption[] {
+  return kind.options.filter((o) => !o.offScale);
+}
 
 export const VALUE_KINDS = { severity, presence, appetite } as const;
