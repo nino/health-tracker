@@ -78,7 +78,8 @@ export function generateDemoExport(): string {
       );
     }
     if (rand() < 0.5) {
-      const severities = [1, 1, 1, 2, 2, 3];
+      // 0 = "Present" (severity unspecified): charted as an off-scale marker.
+      const severities = [1, 1, 1, 2, 2, 3, 0];
       add(
         "HKCategoryTypeIdentifierNausea",
         severities[Math.floor(rand() * severities.length)],

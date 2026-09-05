@@ -9,6 +9,7 @@ import {
 } from "../app/queries";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
 import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
+import { chartOptions } from "../catalog/valueKind";
 import {
   aggregatePoints,
   CHART_MODES,
@@ -35,19 +36,28 @@ function ChartCard(props: {
   yMax: number;
   color: string;
   yLabels?: string[];
-  mapValue?: (value: number) => number;
+  /** Returning undefined drops the entry from the chart. */
+  mapValue?: (value: number) => number | undefined;
+  /** Entries with no y-position, drawn as a marker row (see LineChart). */
+  isMarker?: (value: number) => boolean;
+  markerLabel?: string;
 }) {
   const theme = useTheme();
   const entries = useQuery(entriesByKindOptions(props.kind));
   // Symptoms map to option indices *before* averaging, so a day-average sits
-  // between the labeled gridlines it came from.
-  const points: ChartInputPoint[] = aggregatePoints(
-    (entries.data ?? []).map((e) => ({
-      date: e.date,
-      value: props.mapValue ? props.mapValue(e.value) : e.value,
-    })),
-    props.mode,
-  );
+  // between the labeled gridlines it came from. Markers are never averaged:
+  // they have no value, only a date.
+  const mapped: ChartInputPoint[] = [];
+  const markers: Date[] = [];
+  for (const e of entries.data ?? []) {
+    if (props.isMarker?.(e.value)) {
+      markers.push(e.date);
+      continue;
+    }
+    const value = props.mapValue ? props.mapValue(e.value) : e.value;
+    if (value !== undefined) mapped.push({ date: e.date, value });
+  }
+  const points = aggregatePoints(mapped, props.mode);
 
   return (
     <View
@@ -59,7 +69,7 @@ function ChartCard(props: {
       <Text style={[styles.cardTitle, { color: theme.text }]}>
         {props.title}
       </Text>
-      {points.length === 0 ? (
+      {points.length === 0 && markers.length === 0 ? (
         <Text style={[styles.empty, { color: theme.secondaryText }]}>
           Nothing logged yet.
         </Text>
@@ -70,6 +80,8 @@ function ChartCard(props: {
           yMax={props.yMax}
           color={props.color}
           yLabels={props.yLabels}
+          markers={props.isMarker ? markers : undefined}
+          markerLabel={props.markerLabel}
         />
       )}
     </View>
@@ -91,10 +103,13 @@ function metricChart(metric: Metric, mode: ChartMode, color: string) {
 }
 
 function symptomChart(symptom: Symptom, mode: ChartMode, color: string) {
-  const options = symptom.valueKind.options;
-  // The y-axis is the index into the options (display order) — raw HealthKit
-  // values don't sort (Present = 0, Not Present = 1).
+  // The y-axis is the index into the on-scale options (display order) — raw
+  // HealthKit values don't sort (Present = 0, Not Present = 1). Off-scale
+  // entries (severity's "Present") go to the chart's marker row instead.
+  const options = chartOptions(symptom.valueKind);
   const indexByValue = new Map(options.map((o, index) => [o.value, index]));
+  const offScale = symptom.valueKind.options.filter((o) => o.offScale);
+  const offScaleValues = new Set(offScale.map((o) => o.value));
   return (
     <ChartCard
       key={symptom.id}
@@ -105,7 +120,11 @@ function symptomChart(symptom: Symptom, mode: ChartMode, color: string) {
       yMax={options.length - 1}
       color={color}
       yLabels={options.map((o) => o.label)}
-      mapValue={(value) => indexByValue.get(value) ?? 0}
+      mapValue={(value) => indexByValue.get(value)}
+      isMarker={
+        offScale.length > 0 ? (value) => offScaleValues.has(value) : undefined
+      }
+      markerLabel={offScale.map((o) => o.label).join(" / ")}
     />
   );
 }

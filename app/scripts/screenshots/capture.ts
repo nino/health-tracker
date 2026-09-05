@@ -135,6 +135,11 @@ await page.screenshot({ path: name("history-day-avg") });
 await page.getByText("Week avg").click();
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-week-avg") });
+// Symptom charts: Nausea's seed includes "Present" entries, which chart as
+// the off-scale marker row below the severity scale.
+await page.getByText("🤢 Nausea").last().scrollIntoViewIfNeeded();
+await page.waitForTimeout(600);
+await page.screenshot({ path: name("history-symptoms") });
 // The numeric chart sits between the ratings and the symptoms.
 // .last(): the main grid behind the modal also shows a Weight tile.
 await page.getByText("⚖️ Weight").last().scrollIntoViewIfNeeded();
