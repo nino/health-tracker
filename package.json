@@ -7,6 +7,8 @@
     "typecheck": "cd app && bun run typecheck",
     "lint": "cd app && bun run lint",
     "format": "cd app && bun run format",
-    "format:check": "cd app && bun run format:check"
+    "format:check": "cd app && bun run format:check",
+    "start": "cd app && bunx expo start",
+    "ios": "cd app && bunx expo run:ios --device"
   }
 }
