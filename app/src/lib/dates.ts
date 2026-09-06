@@ -29,6 +29,11 @@ export function toLocalISOString(date: Date): string {
   return `${y}-${mo}-${d}T${h}:${mi}:${s}${sign}${oh}:${om}`;
 }
 
+/** The calendar date in local time, "YYYY-MM-DD" — for filenames. */
+export function toLocalDateString(date: Date): string {
+  return toLocalISOString(date).slice(0, 10);
+}
+
 export function parseISOString(value: string): Date {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

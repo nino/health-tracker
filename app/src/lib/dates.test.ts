@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseISOString, toLocalISOString } from "./dates";
+import { parseISOString, toLocalDateString, toLocalISOString } from "./dates";
 
 // Invariant-style tests so they pass in any host timezone.
 describe("toLocalISOString", () => {
@@ -47,5 +47,12 @@ describe("toLocalISOString", () => {
     expect(() => toLocalISOString(new Date(Date.UTC(-1000, 0, 1)))).toThrow(
       RangeError,
     );
+  });
+});
+
+describe("toLocalDateString", () => {
+  test("is the date part of the local ISO string", () => {
+    const date = new Date(2026, 8, 6, 23, 59); // local time, near midnight
+    expect(toLocalDateString(date)).toBe("2026-09-06");
   });
 });

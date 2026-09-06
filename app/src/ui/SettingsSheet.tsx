@@ -17,6 +17,7 @@ import { SYMPTOMS } from "../catalog";
 import { CUSTOM_KIND_LABELS, type CustomItem } from "../store/customItems";
 import { setEnabledSymptomIds } from "../store/settings";
 import { importEntriesFromJSON } from "../store/swiftImport";
+import { toLocalDateString } from "../lib/dates";
 import { CustomItemSheet } from "./CustomItemSheet";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
@@ -48,7 +49,10 @@ export function SettingsSheet(props: { onClose: () => void }) {
   // ~1 MB transaction limit that a few years of entries would exceed.
   const exportJSON = async () => {
     try {
-      const file = new File(Paths.cache, "health-tracker-export.json");
+      const file = new File(
+        Paths.cache,
+        `health-tracker-export ${toLocalDateString(new Date())}.json`,
+      );
       if (file.exists) file.delete();
       file.write(entryStore.exportJSON());
       await Sharing.shareAsync(file.uri, { mimeType: "application/json" });
