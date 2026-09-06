@@ -39,7 +39,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "testflight": "eas build --platform ios --profile production --auto-submit"
   },
   "private": true,
   "trustedDependencies": [
