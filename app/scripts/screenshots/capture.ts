@@ -47,7 +47,39 @@ const browser = await chromium.launch({
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
+  hasTouch: true, // the chart pinch below is dispatched as real touches
 });
+const cdp = await page.context().newCDPSession(page);
+
+/** Two-finger horizontal pinch-out centered on `locator`, as touch events
+ * (Playwright has no pinch primitive), so the shot exercises the charts'
+ * real gesture path rather than the web-only wheel fallback. */
+async function pinchOut(locator: import("playwright-core").Locator) {
+  const box = (await locator.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const touches = (d: number) => ({
+    touchPoints: [
+      { x: cx - d, y: cy, id: 0 },
+      { x: cx + d, y: cy, id: 1 },
+    ],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    ...touches(20),
+  });
+  for (let d = 30; d <= 120; d += 10) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      ...touches(d),
+    });
+    await page.waitForTimeout(16);
+  }
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+}
 page.on("pageerror", (err) => console.error("page error:", err.message));
 
 await page.goto(`http://127.0.0.1:${server.port}/`);
@@ -129,6 +161,13 @@ await page.getByText("📈").click();
 await page.getByText("History").waitFor();
 await page.waitForTimeout(700); // charts + svg layout settle
 await page.screenshot({ path: name("history-raw") });
+// Charts zoom (pinch) and pan (drag) horizontally; the x-axis re-ticks.
+await pinchOut(
+  page.getByText("Mood").last().locator("xpath=..").locator("svg"),
+);
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("history-zoomed") });
+await page.getByText("Reset zoom").click();
 await page.getByText("Day avg").click();
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-day-avg") });
@@ -149,6 +188,10 @@ await page.screenshot({ path: name("history-numeric") });
 await page.getByText("per week").scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
 await page.screenshot({ path: name("history-events") });
+await pinchOut(page.getByText("per week").locator("xpath=..").locator("svg"));
+await page.waitForTimeout(400);
+await page.screenshot({ path: name("history-events-zoomed") });
+await page.getByText("Reset zoom").click();
 // Text items list their entries last.
 await page.getByText("🍽️ Dishes").last().scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
