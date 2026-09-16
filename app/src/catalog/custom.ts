@@ -7,7 +7,7 @@ import { VALUE_KINDS } from "./valueKind";
 // (tiles, log sheets, charts, next-up) as Symptom- or Metric-shaped
 // objects — no custom-item branches in the UI beyond building these lists.
 
-function describeCustomRating(value: number): string {
+export function describeCustomRating(value: number): string {
   if (value <= 2) return "Very Low";
   if (value <= 4) return "Low";
   if (value <= 6) return "Moderate";

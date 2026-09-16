@@ -1,0 +1,41 @@
+# Builds and submits to TestFlight when a `testflight-*` tag is pushed:
+#
+#   git tag testflight-2026-09-07 && git push origin testflight-2026-09-07
+#
+# Needs the EXPO_TOKEN repository secret (an Expo access token from
+# https://expo.dev/accounts/ninoan/settings/access-tokens) and
+# submit.production.ios.ascAppId in app/eas.json — non-interactive submit
+# can't look the App Store Connect app up by itself. The build and upload
+# both run on EAS servers; this job only kicks them off.
+name: TestFlight
+
+on:
+  push:
+    tags: ["testflight-*"]
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build and submit
+        run: bun run testflight -- --non-interactive --no-wait
