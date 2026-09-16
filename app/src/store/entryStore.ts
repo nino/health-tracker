@@ -1,4 +1,6 @@
+import { exportSchema } from "../catalog/exportSchema";
 import { parseISOString, toLocalISOString } from "../lib/dates";
+import { type CustomItemKind } from "./customItems";
 import { type SqlDriver } from "./driver";
 import { migrate } from "./migrations";
 
@@ -283,8 +285,22 @@ export class EntryStore {
         createdAt: row.created_at,
         archivedAt: row.archived_at,
       }));
+    // The schema sits above the data so someone opening the file reads
+    // how to interpret the numbers before the numbers. Import ignores it.
     return JSON.stringify(
-      { exportedAt: toLocalISOString(now), entries, customItems },
+      {
+        exportedAt: toLocalISOString(now),
+        schema: exportSchema(
+          customItems.map((i) => ({
+            id: i.id,
+            name: i.name,
+            kind: i.kind as CustomItemKind,
+            highIsGood: i.highIsGood,
+          })),
+        ),
+        entries,
+        customItems,
+      },
       null,
       2,
     );
