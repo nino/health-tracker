@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { useId } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Circle, Line, Polyline } from "react-native-svg";
+import Svg, {
+  Circle,
+  ClipPath,
+  Defs,
+  G,
+  Line,
+  Polyline,
+  Rect,
+} from "react-native-svg";
 
 import {
   downsample,
@@ -9,6 +17,14 @@ import {
   timeRange,
   type ChartInputPoint,
 } from "../lib/chartGeometry";
+import { visibleSlice } from "../lib/chartViewport";
+import {
+  ResetZoomButton,
+  useChartViewport,
+  useXTicks,
+  XAxis,
+  XGridLines,
+} from "./chartViewport";
 import { useTheme } from "./theme";
 
 const HEIGHT = 140;
@@ -22,6 +38,10 @@ const MAX_POINTS = 400;
 // Optional markers are dated entries with no position on the y-scale
 // (severity "Present"): drawn as hollow, unconnected dots in a labeled row
 // below the bottom gridline, sharing the line's x-scale.
+//
+// The x-axis zooms and pans (see chartViewport.tsx). Downsampling applies
+// to the visible slice, so zooming into dense history reveals the points
+// the full view had to thin out.
 export function LineChart(props: {
   points: ChartInputPoint[];
   yMin: number;
@@ -32,10 +52,18 @@ export function LineChart(props: {
   markerLabel?: string;
 }) {
   const theme = useTheme();
-  const [width, setWidth] = useState(0);
-  const points = downsample(props.points, MAX_POINTS);
-  const markers = downsample(props.markers ?? [], MAX_POINTS);
-  const range = timeRange([...points.map((p) => p.date), ...markers]);
+  const clipId = useId();
+  const allMarkers = props.markers ?? [];
+  const full = timeRange([...props.points.map((p) => p.date), ...allMarkers]);
+  const { range, width, isZoomed, reset, plotProps } = useChartViewport(full);
+  const points = downsample(visibleSlice(props.points, range), MAX_POINTS);
+  const markers = downsample(
+    visibleSlice(
+      allMarkers.map((date) => ({ date })),
+      range,
+    ),
+    MAX_POINTS,
+  ).map((m) => m.date);
   const scaled = scalePoints(points, props.yMin, props.yMax, range);
   const hasMarkerRow = props.markers !== undefined;
   const height = hasMarkerRow ? HEIGHT + MARKER_ROW : HEIGHT;
@@ -43,6 +71,7 @@ export function LineChart(props: {
   const px = (x: number) => PAD + x * (width - 2 * PAD);
   const py = (y: number) => PAD + (1 - y) * (HEIGHT - 2 * PAD);
   const markerY = HEIGHT - PAD + MARKER_ROW;
+  const ticks = useXTicks(range, width, px);
 
   const gridLevels =
     props.yLabels?.map((label, index, all) => ({
@@ -54,17 +83,16 @@ export function LineChart(props: {
       y: (value - props.yMin) / (props.yMax - props.yMin),
     }));
 
-  const first = range.tMin === 0 ? undefined : new Date(range.tMin);
-  const last = range.tMax === 0 ? undefined : new Date(range.tMax);
-
   return (
     <View>
-      <View
-        style={{ height }}
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-      >
+      <View style={{ height }} {...plotProps}>
         {width > 0 && (
           <Svg width={width} height={height}>
+            <Defs>
+              <ClipPath id={clipId}>
+                <Rect x={0} y={0} width={width} height={height} />
+              </ClipPath>
+            </Defs>
             {gridLevels.map((level) => (
               <Line
                 key={level.label}
@@ -76,34 +104,42 @@ export function LineChart(props: {
                 strokeWidth={StyleSheet.hairlineWidth}
               />
             ))}
-            {scaled.length > 1 && (
-              <Polyline
-                points={scaled.map((p) => `${px(p.x)},${py(p.y)}`).join(" ")}
-                fill="none"
-                stroke={props.color}
-                strokeWidth={1.5}
-              />
-            )}
-            {scaled.map((p, i) => (
-              <Circle
-                key={i}
-                cx={px(p.x)}
-                cy={py(p.y)}
-                r={3}
-                fill={props.color}
-              />
-            ))}
-            {markers.map((date, i) => (
-              <Circle
-                key={`m${i}`}
-                cx={px(scaleTime(date, range))}
-                cy={markerY}
-                r={3}
-                fill="none"
-                stroke={props.color}
-                strokeWidth={1.5}
-              />
-            ))}
+            <XGridLines
+              ticks={ticks}
+              y1={py(1)}
+              y2={hasMarkerRow ? markerY : py(0)}
+              color={theme.border}
+            />
+            <G clipPath={`url(#${clipId})`}>
+              {scaled.length > 1 && (
+                <Polyline
+                  points={scaled.map((p) => `${px(p.x)},${py(p.y)}`).join(" ")}
+                  fill="none"
+                  stroke={props.color}
+                  strokeWidth={1.5}
+                />
+              )}
+              {scaled.map((p, i) => (
+                <Circle
+                  key={i}
+                  cx={px(p.x)}
+                  cy={py(p.y)}
+                  r={3}
+                  fill={props.color}
+                />
+              ))}
+              {markers.map((date, i) => (
+                <Circle
+                  key={`m${i}`}
+                  cx={px(scaleTime(date, range))}
+                  cy={markerY}
+                  r={3}
+                  fill="none"
+                  stroke={props.color}
+                  strokeWidth={1.5}
+                />
+              ))}
+            </G>
           </Svg>
         )}
         <View style={styles.gridLabels} pointerEvents="none">
@@ -129,17 +165,9 @@ export function LineChart(props: {
             </Text>
           )}
         </View>
+        <ResetZoomButton visible={isZoomed} onPress={reset} />
       </View>
-      <View style={styles.xLabels}>
-        <Text style={[styles.xLabel, { color: theme.secondaryText }]}>
-          {first ? first.toLocaleDateString() : ""}
-        </Text>
-        <Text style={[styles.xLabel, { color: theme.secondaryText }]}>
-          {last && last.getTime() !== first?.getTime()
-            ? last.toLocaleDateString()
-            : ""}
-        </Text>
-      </View>
+      <XAxis ticks={ticks} width={width} />
     </View>
   );
 }
@@ -147,6 +175,4 @@ export function LineChart(props: {
 const styles = StyleSheet.create({
   gridLabels: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   gridLabel: { position: "absolute", right: 0, fontSize: 10 },
-  xLabels: { flexDirection: "row", justifyContent: "space-between" },
-  xLabel: { fontSize: 11 },
 });
