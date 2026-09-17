@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import {
   Modal,
   Platform,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScrollLockContext } from "./scrollLock";
 import { useTheme } from "./theme";
 
 // Shared sheet shell: title bar, scrollable content. Sheets with a primary
@@ -29,6 +30,9 @@ export function SheetModal(props: {
   // iOS pageSheet floats below the status bar; Android modals are
   // edge-to-edge, so the header needs the top inset there.
   const headerTopInset = Platform.OS === "android" ? insets.top : 0;
+  // Charts switch scrolling off for the duration of a pinch/pan (see
+  // scrollLock.tsx); everything else leaves it alone.
+  const [scrollLocked, setScrollLocked] = useState(false);
   return (
     <Modal
       visible={props.visible}
@@ -61,12 +65,15 @@ export function SheetModal(props: {
           <View style={styles.headerSpacer} />
         </View>
         <ScrollView
+          scrollEnabled={!scrollLocked}
           contentContainerStyle={[
             styles.content,
             { paddingBottom: 40 + insets.bottom },
           ]}
         >
-          {props.children}
+          <ScrollLockContext.Provider value={setScrollLocked}>
+            {props.children}
+          </ScrollLockContext.Provider>
         </ScrollView>
       </View>
     </Modal>
