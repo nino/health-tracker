@@ -110,8 +110,10 @@ await page.screenshot({ path: name("log-stress") });
 await page.getByText("Cancel").click();
 await page.getByText("Log Symptom").waitFor();
 
-await page.getByText("Flossed").click();
-await page.getByText("Log that it happened.").waitFor();
+await page.getByText("Dishes").click();
+await page
+  .getByPlaceholder("Comment (optional)")
+  .fill("Listened to a podcast, barely noticed doing them.");
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("log-event") });
 await page.getByText("Cancel").click();
@@ -121,13 +123,6 @@ await page.getByText("Weight").click();
 await page.getByPlaceholder("0").fill("72.4");
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("log-numeric") });
-await page.getByText("Cancel").click();
-await page.getByText("Log Symptom").waitFor();
-
-await page.getByText("Dishes").click();
-await page.getByPlaceholder("What happened?").waitFor();
-await page.waitForTimeout(400);
-await page.screenshot({ path: name("log-text-item") });
 await page.getByText("Cancel").click();
 await page.getByText("Log Symptom").waitFor();
 
@@ -184,18 +179,19 @@ await page.screenshot({ path: name("history-symptoms") });
 await page.getByText("⚖️ Weight").last().scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
 await page.screenshot({ path: name("history-numeric") });
-// The event bar chart sits at the bottom of the history sheet.
-await page.getByText("per week").scrollIntoViewIfNeeded();
+// The event cards sit at the bottom of the history sheet: Dishes (logged
+// with comments, listed under its chart), then Flossed (chart only).
+await page.getByText("Dishes · per week").scrollIntoViewIfNeeded();
+await page.waitForTimeout(600);
+await page.screenshot({ path: name("history-event-comments") });
+const flossed = page.getByText("Flossed · per week");
+await flossed.scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
 await page.screenshot({ path: name("history-events") });
-await pinchOut(page.getByText("per week").locator("xpath=..").locator("svg"));
+await pinchOut(flossed.locator("xpath=..").locator("svg"));
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-events-zoomed") });
 await page.getByText("Reset zoom").click();
-// Text items list their entries last.
-await page.getByText("🍽️ Dishes").last().scrollIntoViewIfNeeded();
-await page.waitForTimeout(600);
-await page.screenshot({ path: name("history-text") });
 
 await browser.close();
 server.stop();

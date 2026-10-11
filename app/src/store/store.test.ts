@@ -111,21 +111,21 @@ describe("EntryStore", () => {
     ]);
   });
 
-  test("text custom-item entries dedup by text, like notes", () => {
+  test("commented event entries dedup by text, like notes", () => {
     const store = freshStore();
     const base = new Date("2026-07-12T10:00:00+02:00");
-    store.add("custom:dishes", 0, base, base, "went fine");
+    store.add("custom:dishes", 1, base, base, "went fine");
 
     const added = store.import([
       {
         kind: "custom:dishes",
-        value: 0,
+        value: 1,
         valueText: "went fine",
         date: new Date(base.getTime() + 1000),
       },
       {
         kind: "custom:dishes",
-        value: 0,
+        value: 1,
         valueText: "hated every second",
         date: new Date(base.getTime() + 1000),
       },
@@ -134,6 +134,52 @@ describe("EntryStore", () => {
     expect(store.byKind("custom:dishes").map((e) => e.valueText)).toEqual([
       "went fine",
       "hated every second",
+    ]);
+  });
+
+  test("v7 turns text items into events and their entries into occurrences", () => {
+    const db = memoryDriver();
+    migrate(db);
+    // The v7 UPDATEs are schema-compatible with v6, so rewinding
+    // user_version and re-running migrate exercises exactly that migration.
+    const item = (id: string, kind: string) =>
+      db.run(
+        `INSERT INTO custom_items (id, name, icon, kind, created_at)
+         VALUES (?, ?, '✏️', ?, '2026-07-01T10:00:00+02:00')`,
+        [id, id, kind],
+      );
+    const entry = (id: string, kind: string, value: number, text?: string) =>
+      db.run(
+        `INSERT INTO entries (id, kind, value, value_text, date, date_unix_ms, logged_at)
+         VALUES (?, ?, ?, ?, '2026-07-01T10:00:00+02:00', 0, '2026-07-01T10:00:00+02:00')`,
+        [id, kind, value, text ?? null],
+      );
+    item("dishes", "text");
+    item("weight", "numeric");
+    entry("d", "custom:dishes", 0, "went fine");
+    // Quick notes keep value 0; so does a numeric 0.
+    entry("n", "note", 0, "hit my head");
+    entry("w", "custom:weight", 0);
+    setUserVersion(db, 6);
+
+    migrate(db);
+
+    expect(
+      db.all<{ id: string; kind: string }>(
+        "SELECT id, kind FROM custom_items ORDER BY id",
+      ),
+    ).toEqual([
+      { id: "dishes", kind: "event" },
+      { id: "weight", kind: "numeric" },
+    ]);
+    expect(
+      db.all<{ id: string; value: number; value_text: string | null }>(
+        "SELECT id, value, value_text FROM entries ORDER BY id",
+      ),
+    ).toEqual([
+      { id: "d", value: 1, value_text: "went fine" },
+      { id: "n", value: 0, value_text: "hit my head" },
+      { id: "w", value: 0, value_text: null },
     ]);
   });
 

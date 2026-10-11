@@ -106,7 +106,7 @@ export function generateDemoExport(): string {
         16,
       );
     }
-    // New kinds: a numeric item (decimals, slow drift) and a text item.
+    // A numeric item (decimals, slow drift) and an event logged with comments.
     if (rand() < 0.7) {
       add(
         `custom:${WEIGHT_ID}`,
@@ -125,7 +125,7 @@ export function generateDemoExport(): string {
       ];
       add(
         `custom:${DISHES_ID}`,
-        0,
+        1,
         day,
         19,
         thoughts[Math.floor(rand() * thoughts.length)],
@@ -174,7 +174,7 @@ export function generateDemoExport(): string {
       id: DISHES_ID,
       name: "Dishes",
       icon: "🍽️",
-      kind: "text",
+      kind: "event",
       highIsGood: false,
       createdAt: iso(new Date(2026, 4, 18, 8)),
       archivedAt: null,

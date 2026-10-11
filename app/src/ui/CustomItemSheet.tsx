@@ -22,15 +22,13 @@ const KIND_SEGMENTS: readonly { id: CustomItemKind; label: string }[] = [
   { id: "rating", label: "1–10" },
   { id: "event", label: "Event" },
   { id: "numeric", label: "Number" },
-  { id: "text", label: "Text" },
 ];
 
 const KIND_DESCRIPTIONS: Record<CustomItemKind, string> = {
   severity: "Severity item — logged like a symptom.",
   rating: "1–10 rating item.",
-  event: "Event item — one tap logs “it happened”.",
+  event: "Event item — one tap logs “it happened”, with an optional comment.",
   numeric: "Number item — log any value (reps, weight, minutes…).",
-  text: "Text item — write a note each time, all on one topic.",
 };
 
 /** Create or edit a custom item. The kind is fixed after creation — stored

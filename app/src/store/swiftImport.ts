@@ -120,20 +120,15 @@ function validateValue(
     return rating;
   }
   if (customKind === "event") {
-    if (rating !== 1) {
+    // Exports written before schema v7 have "text" items, whose entries
+    // were value 0; they are events now, so fold the zeros into 1 — the
+    // same mapping the v7 migration applied.
+    if (rating !== 0 && rating !== 1) {
       throw new Error(
         `Entry ${index} has an invalid event value for ${kind}: ${rating}`,
       );
     }
-    return rating;
-  }
-  if (customKind === "text") {
-    if (rating !== 0) {
-      throw new Error(
-        `Entry ${index} has a non-zero text-item value: ${rating}`,
-      );
-    }
-    return rating;
+    return 1;
   }
   if (kind === NOTE_KIND) {
     if (rating !== 0) {
@@ -199,7 +194,8 @@ function parseCustomItems(parsed: unknown): CustomItemCandidate[] {
       id: requireString(record.id, index, "id"),
       name: requireString(record.name, index, "name"),
       icon: requireString(record.icon, index, "icon"),
-      kind,
+      // Pre-v7 "text" items are events now (see validateValue).
+      kind: kind === "text" ? "event" : kind,
       highIsGood: kind === "rating" && record.highIsGood === true,
       createdAt: parseStrictDate(record.createdAt, index, "createdAt"),
       archivedAt:
@@ -264,11 +260,17 @@ export function parseExport(
       date: parseStrictDate(entry.date, index, "date"),
       loggedAt: parseStrictDate(entry.loggedAt, index, "loggedAt"),
     };
-    if (kind === NOTE_KIND || customKinds.get(kind) === "text") {
+    if (kind === NOTE_KIND) {
       if (typeof entry.text !== "string" || entry.text.trim() === "") {
         throw new Error(`Entry ${index} is a note without text`);
       }
       candidate.valueText = entry.text;
+    } else if (customKinds.get(kind) === "event" && entry.text !== undefined) {
+      // An event's comment is optional; blank means none.
+      if (typeof entry.text !== "string") {
+        throw new Error(`Entry ${index} has a non-string comment`);
+      }
+      if (entry.text.trim() !== "") candidate.valueText = entry.text;
     }
     entries.push(candidate);
   });

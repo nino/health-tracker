@@ -61,6 +61,9 @@ export function SheetModal(props: {
           <View style={styles.headerSpacer} />
         </View>
         <ScrollView
+          // Without this, the first tap on Save while the keyboard is up
+          // only dismisses the keyboard and never reaches the button.
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.content,
             { paddingBottom: 40 + insets.bottom },

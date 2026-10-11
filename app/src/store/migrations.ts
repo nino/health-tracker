@@ -58,6 +58,15 @@ const MIGRATIONS: string[][] = [
   ],
   // v6: free text for quick-note entries (kind "note"); null everywhere else.
   [`ALTER TABLE entries ADD COLUMN value_text TEXT`],
+  // v7: the "text" custom-item kind merged into "event" — an event entry is
+  // value 1 plus an optional comment in value_text. Old text entries (value
+  // 0) become occurrences that carry their text as the comment. Entries
+  // first: the subquery needs the items still marked 'text'.
+  [
+    `UPDATE entries SET value = 1
+     WHERE kind IN (SELECT 'custom:' || id FROM custom_items WHERE kind = 'text')`,
+    `UPDATE custom_items SET kind = 'event' WHERE kind = 'text'`,
+  ],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

@@ -94,7 +94,7 @@ describe("customItems", () => {
     expect(all[0].archivedAt).not.toBeNull();
   });
 
-  test("numeric and text kinds round-trip; highIsGood stays rating-only", () => {
+  test("numeric and event kinds round-trip; highIsGood stays rating-only", () => {
     const db = freshDb();
     const newId = sequentialIds();
     const numeric = addCustomItem(db, newId, {
@@ -103,17 +103,17 @@ describe("customItems", () => {
       kind: "numeric",
       highIsGood: true, // ignored — rating-only
     });
-    const text = addCustomItem(db, newId, {
+    const event = addCustomItem(db, newId, {
       name: "Dishes",
       icon: "🍽️",
-      kind: "text",
+      kind: "event",
       highIsGood: false,
     });
     expect(numeric.highIsGood).toBe(false);
     const items = listCustomItems(db);
-    expect(items.map((i) => i.kind)).toEqual(["text", "numeric"]);
+    expect(items.map((i) => i.kind)).toEqual(["event", "numeric"]);
     expect(items.every((i) => !i.highIsGood)).toBe(true);
-    updateCustomItem(db, text.id, {
+    updateCustomItem(db, event.id, {
       name: "Dishes",
       icon: "🍽️",
       highIsGood: true, // ignored again
