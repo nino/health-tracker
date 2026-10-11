@@ -4,38 +4,32 @@ import { StyleSheet, TextInput } from "react-native";
 
 import { saveEntry } from "../app/health";
 import { NOTE } from "../catalog/note";
-import { customEntryKind, type CustomItem } from "../store/customItems";
 import { PlainButton, PrimaryButton } from "./Buttons";
 import { DateField } from "./DateField";
 import { SheetModal } from "./SheetModal";
 import { useTheme } from "./theme";
 
-/** Free-text log sheet: the built-in quick note (no `item` — truly one-off
- * events, kind "note") and text custom items (kind "custom:<id>" — repeated
- * thoughts on one topic). Either way value 0, text in value_text, not part
- * of next-up, no chart. */
-export function NoteLogSheet(props: {
-  item?: CustomItem;
-  onClose: () => void;
-}) {
+/** Free-text log sheet for the built-in quick note: truly one-off entries,
+ * kind "note", value 0, text in value_text, not part of next-up, no chart.
+ * (Recurring topics are event items, whose entries take an optional
+ * comment — see EventLogSheet.) */
+export function NoteLogSheet(props: { onClose: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [date, setDate] = useState(() => new Date());
-  const { icon, name } = props.item ?? NOTE;
-  const kind = props.item ? customEntryKind(props.item.id) : NOTE.id;
 
   const save = () => {
     const trimmed = text.trim();
     if (trimmed === "") return;
-    saveEntry(queryClient, kind, 0, date, trimmed);
+    saveEntry(queryClient, NOTE.id, 0, date, trimmed);
     props.onClose();
   };
 
   return (
     <SheetModal
       visible
-      title={`${icon} ${name}`}
+      title={`${NOTE.icon} ${NOTE.name}`}
       onClose={props.onClose}
       closeLabel={null}
     >

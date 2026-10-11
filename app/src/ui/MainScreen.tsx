@@ -43,7 +43,7 @@ export function MainScreen() {
   const now = useMinuteTick();
   const [selectedSymptom, setSelectedSymptom] = useState<Symptom | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
-  // Event, numeric, and text items share one selection; the sheet is picked
+  // Event and numeric items share one selection; the sheet is picked
   // by kind. (Severity/rating items flow through the symptom/metric states.)
   const [selectedCustom, setSelectedCustom] = useState<CustomItem | null>(null);
   const [showingNote, setShowingNote] = useState(false);
@@ -69,11 +69,10 @@ export function MainScreen() {
       .map(customItemToSymptom),
   ].sort((a, b) => a.name.localeCompare(b.name));
   const gridMetrics = [...METRICS, ...customMetrics];
-  // Events, numeric, and text items tile after the symptoms; they already
-  // sort alphabetically (listCustomItems orders by name).
+  // Events and numeric items tile after the symptoms; they already sort
+  // alphabetically (listCustomItems orders by name).
   const otherItems = custom.filter(
-    (item) =>
-      item.kind === "event" || item.kind === "numeric" || item.kind === "text",
+    (item) => item.kind === "event" || item.kind === "numeric",
   );
   const dates = lastDates.data ?? new Map<string, Date>();
 
@@ -214,13 +213,6 @@ export function MainScreen() {
       )}
       {selectedCustom?.kind === "numeric" && (
         <NumericLogSheet
-          key={selectedCustom.id}
-          item={selectedCustom}
-          onClose={() => setSelectedCustom(null)}
-        />
-      )}
-      {selectedCustom?.kind === "text" && (
-        <NoteLogSheet
           key={selectedCustom.id}
           item={selectedCustom}
           onClose={() => setSelectedCustom(null)}

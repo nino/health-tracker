@@ -394,7 +394,8 @@ describe("custom items in exports", () => {
         .added,
     ).toBe(2);
 
-    // An event value other than 1 is invalid; a note needs text and value 0.
+    // An event value other than 1 (or a pre-v7 0) is invalid; a note needs
+    // text and value 0.
     const withEntry = (entry: Record<string, unknown>) =>
       JSON.stringify({
         entries: [
@@ -417,9 +418,9 @@ describe("custom items in exports", () => {
     ).toThrow(/non-zero note value/);
   });
 
-  test("numeric and text items round-trip; their values validate", () => {
+  test("numeric items and commented events round-trip; their values validate", () => {
     const NUMERIC_ID = "44444444-4444-4444-4444-444444444444";
-    const TEXT_ID = "55555555-5555-5555-5555-555555555555";
+    const EVENT_ID = "55555555-5555-5555-5555-555555555555";
     const newKindsExport = JSON.stringify({
       entries: [
         // Decimals are valid for numeric items (weight).
@@ -430,8 +431,8 @@ describe("custom items in exports", () => {
           loggedAt: "2026-07-20T10:00:00+02:00",
         },
         {
-          kind: `custom:${TEXT_ID}`,
-          rating: 0,
+          kind: `custom:${EVENT_ID}`,
+          rating: 1,
           text: "went fine, mind wandered",
           date: "2026-07-21T10:00:00+02:00",
           loggedAt: "2026-07-21T10:00:00+02:00",
@@ -448,10 +449,10 @@ describe("custom items in exports", () => {
           archivedAt: null,
         },
         {
-          id: TEXT_ID,
+          id: EVENT_ID,
           name: "Dishes",
           icon: "🍽️",
-          kind: "text",
+          kind: "event",
           highIsGood: false,
           createdAt: "2026-07-19T09:00:00+02:00",
           archivedAt: null,
@@ -462,7 +463,7 @@ describe("custom items in exports", () => {
     const result = importEntriesFromJSON(store, db, newKindsExport);
     expect(result.added).toBe(2);
     expect(store.byKind(`custom:${NUMERIC_ID}`)[0].value).toBe(72.4);
-    expect(store.byKind(`custom:${TEXT_ID}`)[0].valueText).toBe(
+    expect(store.byKind(`custom:${EVENT_ID}`)[0].valueText).toBe(
       "went fine, mind wandered",
     );
 
@@ -473,8 +474,12 @@ describe("custom items in exports", () => {
         .added,
     ).toBe(2);
     expect(restored.store.byKind(`custom:${NUMERIC_ID}`)[0].value).toBe(72.4);
+    expect(restored.store.byKind(`custom:${EVENT_ID}`)[0].valueText).toBe(
+      "went fine, mind wandered",
+    );
 
-    // Numeric must still be a finite number; text items need text + value 0.
+    // Numeric must still be a finite number; an event's comment is
+    // optional (blank means none) but must be a string.
     const withEntry = (entry: Record<string, unknown>) =>
       JSON.stringify({
         entries: [
@@ -489,14 +494,54 @@ describe("custom items in exports", () => {
     expect(() =>
       parseExport(withEntry({ kind: `custom:${NUMERIC_ID}`, rating: "12" })),
     ).toThrow(/non-numeric/);
-    expect(() =>
-      parseExport(withEntry({ kind: `custom:${TEXT_ID}`, rating: 0 })),
-    ).toThrow(/note without text/);
+    expect(
+      parseExport(withEntry({ kind: `custom:${EVENT_ID}`, rating: 1 }))
+        .entries[0].valueText,
+    ).toBeUndefined();
+    expect(
+      parseExport(
+        withEntry({ kind: `custom:${EVENT_ID}`, rating: 1, text: "  " }),
+      ).entries[0].valueText,
+    ).toBeUndefined();
     expect(() =>
       parseExport(
-        withEntry({ kind: `custom:${TEXT_ID}`, rating: 1, text: "x" }),
+        withEntry({ kind: `custom:${EVENT_ID}`, rating: 1, text: 5 }),
       ),
-    ).toThrow(/non-zero text-item value/);
+    ).toThrow(/non-string comment/);
+  });
+
+  test("pre-v7 text items import as events with their text as the comment", () => {
+    const TEXT_ID = "66666666-6666-6666-6666-666666666666";
+    const oldExport = JSON.stringify({
+      entries: [
+        {
+          kind: `custom:${TEXT_ID}`,
+          rating: 0,
+          text: "went fine, mind wandered",
+          date: "2026-07-21T10:00:00+02:00",
+          loggedAt: "2026-07-21T10:00:00+02:00",
+        },
+      ],
+      customItems: [
+        {
+          id: TEXT_ID,
+          name: "Dishes",
+          icon: "🍽️",
+          kind: "text",
+          highIsGood: false,
+          createdAt: "2026-07-19T09:00:00+02:00",
+          archivedAt: null,
+        },
+      ],
+    });
+    const { store, db } = freshStore();
+    expect(importEntriesFromJSON(store, db, oldExport).added).toBe(1);
+    expect(listCustomItems(db)[0].kind).toBe("event");
+    const [entry] = store.byKind(`custom:${TEXT_ID}`);
+    expect(entry.value).toBe(1);
+    expect(entry.valueText).toBe("went fine, mind wandered");
+    // Importing the same file again adds nothing.
+    expect(importEntriesFromJSON(store, db, oldExport).added).toBe(0);
   });
 
   test("on an id conflict, values validate against the device's kind", () => {
