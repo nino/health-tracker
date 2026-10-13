@@ -80,6 +80,15 @@ async function pinchOut(locator: import("playwright-core").Locator) {
     touchPoints: [],
   });
 }
+// expo-sqlite's sync channel gives up after 1e6 Atomics.pause() spins, which
+// a slow container burns through mid-import ("Sync operation timeout").
+// Without Atomics.pause it falls back to a 1e9 plain-spin bound.
+await page.addInitScript(() => {
+  delete (Atomics as { pause?: unknown }).pause;
+});
+// Fake clock (runs in real time until paused) so animations can be stepped
+// frame-accurately below; screenshots are too slow to catch them otherwise.
+await page.clock.install();
 page.on("pageerror", (err) => console.error("page error:", err.message));
 
 await page.goto(`http://127.0.0.1:${server.port}/`);
@@ -192,6 +201,25 @@ await pinchOut(flossed.locator("xpath=..").locator("svg"));
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-events-zoomed") });
 await page.getByText("Reset zoom").click();
+await page.getByText("Done").click();
+await page.getByText("Log Symptom").waitFor();
+
+// Save & Next swaps sheets inside one modal: the saved card is stamped and
+// flicked away while the next one rises. Last, because it saves an entry.
+await page.getByText("Stress", { exact: true }).first().click();
+await page.getByText("Save & Next").waitFor();
+await page.waitForTimeout(400);
+await page.getByText("4", { exact: true }).click();
+await page.clock.pauseAt(Date.now() + 1000);
+await page.getByText("Save & Next").click();
+let prev = 0;
+for (const ms of [60, 120, 200, 280]) {
+  await page.clock.runFor(ms - prev);
+  prev = ms;
+  await page.screenshot({ path: name(`save-next-${ms}ms`) });
+}
+await page.clock.runFor(600);
+await page.screenshot({ path: name("save-next-arrived") });
 
 await browser.close();
 server.stop();
