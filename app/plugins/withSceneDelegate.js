@@ -61,13 +61,20 @@ function withSceneDelegate(config) {
       throw new Error("withSceneDelegate: expected a Swift AppDelegate.");
     }
     let src = config.modResults.contents;
-    if (!src.includes("ExpoReactNativeFactoryProvider")) {
+    if (
+      !/class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider \{/.test(
+        src,
+      )
+    ) {
       src = replaceOrThrow(
         src,
         /class AppDelegate: ExpoAppDelegate \{/,
         "class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {",
         "the AppDelegate class declaration",
       );
+    }
+    if (src.includes("UIWindow(")) {
+      // SceneDelegate must be the only place React Native starts.
       src = replaceOrThrow(
         src,
         WINDOW_SETUP,
