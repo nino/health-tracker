@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -26,15 +26,16 @@ import { SheetDeck } from "./SheetDeck";
 import { SymptomLogSheet } from "./SymptomLogSheet";
 import { Tile, PlainTile } from "./Tile";
 import { useTheme } from "./theme";
+import { useMountEffect } from "./useMountEffect";
 
 // Re-render every minute so relative ages and staleness colors stay current
 // (the TimelineView equivalent).
 function useMinuteTick(): Date {
   const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
+  useMountEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(timer);
-  }, []);
+  });
   return now;
 }
 

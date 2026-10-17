@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffectEvent, useMemo, useRef, useState } from "react";
 import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
@@ -22,6 +22,7 @@ import {
   zoomViewport,
 } from "../lib/chartViewport";
 import { useTheme } from "./theme";
+import { useMountEffect } from "./useMountEffect";
 
 // Zoom/pan gestures for the history charts, shared by LineChart and
 // BarChart. One finger (or a mouse) dragging sideways pans; two fingers
@@ -76,21 +77,17 @@ interface GestureMemory {
 }
 
 // Implemented on the raw View responder props rather than PanResponder:
-// the responder callbacks need the latest width and plot offset, which
-// live in refs, and React's compiler lint (rightly) refuses refs captured by
-// a factory called during render. Plain event-handler props are fine.
+// the responder callbacks need the latest width and plot offset, and
+// React's compiler lint (rightly) refuses refs captured by a factory called
+// during render. Plain event-handler props are recreated every render, so
+// they read width and minSpan straight from it.
 export function useChartViewport(full: TimeRange): ChartViewport {
   const [viewport, setViewport] = useState<Viewport>(FULL_VIEWPORT);
   const [width, setWidth] = useState(0);
   const ref = useRef<View>(null);
-  // Latest render's values for the handlers; synced in an effect, which
-  // runs before any gesture can arrive.
-  const live = useRef({ width: 0, minSpan: 1, left: 0 });
+  // The plot's x in the window, from measureInWindow's async callback.
+  const plotLeft = useRef(0);
   const minSpan = minViewportSpan(full);
-  useEffect(() => {
-    live.current.width = width;
-    live.current.minSpan = minSpan;
-  }, [width, minSpan]);
   const memory = useRef<GestureMemory>({
     startX: 0,
     startY: 0,
@@ -99,12 +96,10 @@ export function useChartViewport(full: TimeRange): ChartViewport {
   });
 
   const pan = (deltaPx: number) => {
-    const { width } = live.current;
     if (width <= 0) return;
     setViewport((v) => panViewport(v, deltaPx / width));
   };
   const zoom = (factor: number, anchorPx: number) => {
-    const { width, minSpan } = live.current;
     if (width <= 0) return;
     setViewport((v) => zoomViewport(v, factor, anchorPx / width, minSpan));
   };
@@ -117,7 +112,7 @@ export function useChartViewport(full: TimeRange): ChartViewport {
     }
   };
   const onMoveShouldSetResponder = (e: GestureResponderEvent) => {
-    if (live.current.minSpan >= 1) return false; // nothing to zoom into
+    if (minSpan >= 1) return false; // nothing to zoom into
     if (e.nativeEvent.touches.length >= 2) return true;
     const { x, y } = pointer(e);
     const dx = Math.abs(x - memory.current.startX);
@@ -139,7 +134,7 @@ export function useChartViewport(full: TimeRange): ChartViewport {
     if (touches.length >= 2) {
       const [a, b] = touches;
       const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
-      const midX = (a.pageX + b.pageX) / 2 - live.current.left;
+      const midX = (a.pageX + b.pageX) / 2 - plotLeft.current;
       if (m.pinch && m.pinch.distance > 0) {
         zoom(distance / m.pinch.distance, midX);
         pan(midX - m.pinch.midX);
@@ -161,30 +156,31 @@ export function useChartViewport(full: TimeRange): ChartViewport {
   // deltaX. RN's View has no onWheel, so listen on the DOM node directly.
   // touch-action keeps the browser from page-zooming on a two-finger pinch
   // over the plot while still letting vertical swipes scroll the sheet.
-  useEffect(() => {
+  // The listener is attached once; onWheel always sees the latest render.
+  const onWheel = useEffectEvent((e: WheelEvent) => {
+    if (width <= 0 || minSpan >= 1) return;
+    if (e.ctrlKey) {
+      e.preventDefault();
+      zoom(Math.exp(-e.deltaY / 100), e.offsetX);
+    } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      e.preventDefault();
+      pan(-e.deltaX);
+    }
+  });
+  useMountEffect(() => {
     if (Platform.OS !== "web") return;
     const node = ref.current as unknown as HTMLElement | null;
     if (!node?.addEventListener) return;
     node.style.touchAction = "pan-y";
-    const onWheel = (e: WheelEvent) => {
-      const { width, minSpan } = live.current;
-      if (width <= 0 || minSpan >= 1) return;
-      if (e.ctrlKey) {
-        e.preventDefault();
-        zoom(Math.exp(-e.deltaY / 100), e.offsetX);
-      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        e.preventDefault();
-        pan(-e.deltaX);
-      }
-    };
-    node.addEventListener("wheel", onWheel, { passive: false });
-    return () => node.removeEventListener("wheel", onWheel);
-  }, []);
+    const listener = (e: WheelEvent) => onWheel(e);
+    node.addEventListener("wheel", listener, { passive: false });
+    return () => node.removeEventListener("wheel", listener);
+  });
 
   const onLayout = (e: LayoutChangeEvent) => {
     setWidth(e.nativeEvent.layout.width);
     ref.current?.measureInWindow((x) => {
-      live.current.left = x;
+      plotLeft.current = x;
     });
   };
 

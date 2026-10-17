@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffectEvent, useState, type ReactNode } from "react";
 import {
   AccessibilityInfo,
   Animated,
@@ -19,6 +13,7 @@ import {
 
 import { HostedSheetContext } from "./SheetModal";
 import { useTheme } from "./theme";
+import { useMountEffect } from "./useMountEffect";
 
 const useNativeDriver = Platform.OS !== "web";
 
@@ -46,47 +41,16 @@ export function SheetDeck(props: {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
-  // 0 = resting in front, 1 = gone / fully arrived.
-  const [out] = useState(() => new Animated.Value(1));
-  const [enter] = useState(() => new Animated.Value(1));
-
+  // 0 = resting in front, 1 = gone / fully arrived. Fresh values per
+  // transition, created at 0 during the render that brings the new card in
+  // (state adjusted during render, so React redoes that render before
+  // painting), so neither card shows its end state for a frame.
   const leavingKey = props.leaving?.key;
-  // Through a ref: the parent re-renders mid-flight (the save invalidates
-  // queries), and a fresh callback identity must not restart the animation.
-  const onLeft = useRef(props.onLeft);
-  useEffect(() => {
-    onLeft.current = props.onLeft;
-  });
-  // Layout effect: reset both values before the first frame with the new
-  // card paints, so neither shows its end state for a frame.
-  useLayoutEffect(() => {
-    if (leavingKey === undefined) return;
-    out.setValue(0);
-    enter.setValue(0);
-    const animation = Animated.parallel([
-      Animated.timing(out, {
-        toValue: 1,
-        // Linear in time; the interpolations below shape it (native-driven
-        // interpolations can't take an easing function).
-        duration: reduceMotion ? 150 : 120,
-        easing: Easing.linear,
-        useNativeDriver,
-      }),
-      reduceMotion
-        ? Animated.timing(enter, { toValue: 1, duration: 150, useNativeDriver })
-        : Animated.spring(enter, {
-            toValue: 1,
-            stiffness: 1920,
-            damping: 54,
-            mass: 1,
-            useNativeDriver,
-          }),
-    ]);
-    animation.start(({ finished }) => {
-      if (finished) onLeft.current();
-    });
-    return () => animation.stop();
-  }, [leavingKey, out, enter, reduceMotion]);
+  const [transition, setTransition] = useState(() => newTransition(leavingKey));
+  if (transition.key !== leavingKey) {
+    setTransition(newTransition(leavingKey));
+  }
+  const { out, enter } = transition;
 
   const leavingStyle = reduceMotion
     ? { opacity: out.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }
@@ -194,21 +158,83 @@ export function SheetDeck(props: {
             </Animated.View>
           ))}
         </View>
+        {leavingKey !== undefined && (
+          // Keyed, so each transition mounts its own animation.
+          <DeckAnimation
+            key={leavingKey}
+            out={out}
+            enter={enter}
+            reduceMotion={reduceMotion}
+            onDone={props.onLeft}
+          />
+        )}
       </HostedSheetContext.Provider>
     </Modal>
   );
 }
 
+function newTransition(key: string | undefined) {
+  return {
+    key,
+    out: new Animated.Value(key === undefined ? 1 : 0),
+    enter: new Animated.Value(key === undefined ? 1 : 0),
+  };
+}
+
+// Runs one card swap from mount to finish. Renders nothing; it exists so
+// the animation starts and stops with a mount instead of an effect with
+// dependencies.
+function DeckAnimation(props: {
+  out: Animated.Value;
+  enter: Animated.Value;
+  reduceMotion: boolean;
+  onDone: () => void;
+}) {
+  // The parent re-renders mid-flight (the save invalidates queries); this
+  // always calls the latest callback without restarting anything.
+  const onDone = useEffectEvent(props.onDone);
+  useMountEffect(() => {
+    const { out, enter, reduceMotion } = props;
+    const animation = Animated.parallel([
+      Animated.timing(out, {
+        toValue: 1,
+        // Linear in time; the interpolations above shape it (native-driven
+        // interpolations can't take an easing function).
+        duration: reduceMotion ? 150 : 120,
+        easing: Easing.linear,
+        useNativeDriver,
+      }),
+      reduceMotion
+        ? Animated.timing(enter, { toValue: 1, duration: 150, useNativeDriver })
+        : Animated.spring(enter, {
+            toValue: 1,
+            stiffness: 1920,
+            damping: 54,
+            mass: 1,
+            useNativeDriver,
+          }),
+    ]);
+    animation.start(({ finished }) => {
+      if (finished) onDone();
+    });
+    return () => animation.stop();
+  });
+  return null;
+}
+
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduce, () => {});
+  useMountEffect(() => {
+    // Wrapped, since the hooks lint reads a bare setter in an effect with no
+    // dependency list as a possible update loop.
+    const update = (value: boolean) => setReduce(value);
+    AccessibilityInfo.isReduceMotionEnabled().then(update, () => {});
     const sub = AccessibilityInfo.addEventListener(
       "reduceMotionChanged",
-      setReduce,
+      update,
     );
     return () => sub.remove();
-  }, []);
+  });
   return reduce;
 }
 
