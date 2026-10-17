@@ -25,6 +25,7 @@ Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `
   ```
 - Device builds go through EAS (`eas.json`: `development` = dev client, `preview` = sideloadable APK for Android, `production` = App Store / TestFlight). EAS is logged in as ninoan (`~/.bun/bin/eas`); ask before production/submit actions.
 - TestFlight (verified working 2026-09-05): from `app/`, `eas build --platform ios --profile production --auto-submit` builds on EAS servers and uploads to App Store Connect; the build then shows up under TestFlight after processing. Build numbers come from EAS (`appVersionSource: remote`), so never edit `buildNumber` by hand — only bump `version` in `app.json` for a new marketing version. Credentials and the App Store Connect record are EAS-managed.
+- `plugins/withSceneDelegate.js` adopts the UIScene life cycle (Info.plist scene manifest + a `SceneDelegate` on expo's `ExpoAppSceneDelegate`, needs expo ≥ 57.0.30). Apps linked against the iOS 27 SDK crash at launch without it, and the SDK 57 prebuild template doesn't do it. Drop the plugin once the Expo SDK's own template ships a SceneDelegate (SDK 58 does).
 - Never pass `CODE_SIGNING_ALLOWED=NO` to simulator builds: it strips the HealthKit entitlement, and HealthKit then **hangs silently** on `requestAuthorization` instead of erroring (cost: a long debugging session on 2026-07-16). Simulator builds sign automatically.
 - HealthKit's authorization sheet requires the request to be made from the main thread — the Expo module dispatches internally via `Task { @MainActor ... }`; keep it that way. Gating on `statusForAuthorizationRequest` hangs on simulators (the old Swift app hit this); the app gates with a local settings flag instead (`didRequestAuth:*`).
 - On-device behavior (HealthKit prompts, real authorization sheets) can only be tested by Nino on his iPhone — ask rather than assume.
@@ -40,7 +41,7 @@ Web is **not a shipping target**; it exists so screenshots can be captured headl
 
 - `index.web.ts` warms expo-sqlite's wasm worker asynchronously before mounting; `src/app/appDb.ts` opens the database lazily on first use. Both exist because expo-sqlite's synchronous web API waits on its worker with a *bounded* spin and throws (`Sync operation timeout`) if called before the worker is up — and a blocking retry can't recover, because the worker's startup is itself queued behind the blocked main thread.
 - `metro.config.js` registers `.wasm` as an asset and serves COOP/COEP headers (the sync API needs SharedArrayBuffer, which needs cross-origin isolation; `capture.ts` sets the same headers).
-- `patches/expo-sqlite@57.0.1.patch` fixes an upstream web bug: the sync channel wrote the result length via `Uint8Array.set(new Uint32Array([length]))`, which coerces to a single byte, truncating every result over 255 bytes to `length % 256` (reads worked only for tiny results). Worth upstreaming; re-check when bumping expo-sqlite.
+- `patches/expo-sqlite@57.0.4.patch` (expo-sqlite is pinned exactly so the patch keeps applying) fixes an upstream web bug: the sync channel wrote the result length via `Uint8Array.set(new Uint32Array([length]))`, which coerces to a single byte, truncating every result over 255 bytes to `length % 256` (reads worked only for tiny results). Worth upstreaming; re-check when bumping expo-sqlite.
 
 ## Architecture
 
