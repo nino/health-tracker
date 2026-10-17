@@ -42,6 +42,9 @@ function setup(overrides: Partial<TelemetryDeps> = {}) {
 function memoryPending(): PendingStore & { body: string | null } {
   return {
     body: null,
+    discard(body) {
+      if (this.body === body) this.body = null;
+    },
     save(body) {
       this.body = body;
     },
@@ -123,19 +126,14 @@ describe("createTelemetry", () => {
     ]);
   });
 
-  test("usage events carry only their declared properties", () => {
+  test("usage events carry only the common properties", () => {
     const { sent, telemetry } = setup();
     telemetry.capture({ name: "app_opened" });
-    telemetry.capture({ name: "entry_logged", category: "metric" });
-    expect(sent.map((s) => s.body.event)).toEqual([
-      "app_opened",
-      "entry_logged",
-    ]);
-    expect(sent[1].body.properties).toEqual({
+    expect(sent.map((s) => s.body.event)).toEqual(["app_opened"]);
+    expect(sent[0].body.properties).toEqual({
       $app_version: "1.2.3",
       $os: "iOS",
       $os_version: "26.0",
-      category: "metric",
       $lib: "health-tracker",
       $process_person_profile: false,
       $geoip_disable: true,
@@ -175,6 +173,18 @@ describe("createTelemetry", () => {
     const { sent, telemetry } = setup({ limiter: createRateLimiter(2) });
     for (let i = 0; i < 5; i++) telemetry.capture({ name: "app_opened" });
     expect(sent.length).toBe(2);
+  });
+
+  test("one noisy context can't use up the budget for the others", () => {
+    const { sent, telemetry } = setup({
+      contextLimiter: () => createRateLimiter(2),
+    });
+    for (let i = 0; i < 5; i++)
+      telemetry.captureError(new Error("x"), "mirror");
+    telemetry.captureError(new Error("y"), "query");
+    expect(
+      sent.map((s) => (s.body.properties as { context: string }).context),
+    ).toEqual(["mirror", "mirror", "query"]);
   });
 
   test("never throws, whatever send does", async () => {
@@ -219,6 +229,32 @@ describe("createTelemetry", () => {
     telemetry.captureError(new Error("boom"), "uncaught", { fatal: true });
     await flush();
     expect(pending.body).toBeNull();
+  });
+
+  test("a report sent late doesn't discard a newer kept report", async () => {
+    const pending = memoryPending();
+    let finishFirst = (): void => {};
+    let calls = 0;
+    const { telemetry } = setup({
+      pending,
+      send: () =>
+        ++calls === 1
+          ? new Promise<void>((resolve) => (finishFirst = resolve))
+          : new Promise(() => {}),
+    });
+    telemetry.captureError(new Error("first"), "uncaught", { fatal: true });
+    telemetry.captureError(new Error("second"), "uncaught", { fatal: true });
+    const second = pending.body;
+    finishFirst();
+    await flush();
+    expect(pending.body).toBe(second);
+  });
+
+  test("the message can't leak through the stack", () => {
+    const error = new Error("bad date: x\nat my secret (note:1:2)\nme@x.com");
+    error.stack = `Error: ${error.message}\n    at real (main.jsbundle:1:2)`;
+    const [entry] = exceptionList(error, true, true);
+    expect(entry.stacktrace?.frames.map((f) => f.function)).toEqual(["real"]);
   });
 });
 

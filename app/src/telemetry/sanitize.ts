@@ -23,11 +23,13 @@ const REPLACEMENTS: [RegExp, string][] = [
   // A specific symptom type is health data in itself.
   [/\bHK[A-Za-z]*Identifier[A-Za-z]+/g, "<hk-type>"],
   // Quoted text is data (V8's JSON errors quote the input, ours quote
-  // values); only identifier-like single-quoted words — how engines and
-  // Expo name functions and properties — are kept.
+  // values). Single quotes open only after a non-letter, so a contraction's
+  // apostrophe can't pair with a quote; the one kind of single-quoted text
+  // kept is a lower-camel identifier — how engines and Expo name
+  // properties and functions ('length', 'saveCategorySample').
   [/"[^"]*"/g, '"…"'],
   [/[“«][^”»]*[”»]/g, '"…"'],
-  [/'(?![A-Za-z_$][\w$.]{0,39}')[^'\n]*'/g, "'…'"],
+  [/(?<![A-Za-z])'(?![a-z_$][\w$]{0,39}'(?![A-Za-z]))[^'\n]*'/g, "'…'"],
   [/`[^`]*`/g, "`…`"],
   // Dates and times, then any other number: entry values, ratings,
   // timestamps. Only digits that end an identifier (v7, utf8) survive.
@@ -73,14 +75,16 @@ const V8_FRAME =
   /^\s*at (?:(.+?) \()?(?:address at )?(.*?)(?::(\d+))?(?::(\d+))?\)?\s*$/;
 const JSC_FRAME = /^\s*(.*?)@(.*?)(?::(\d+))?(?::(\d+))?\s*$/;
 
+// Metro's dev bundle URLs put their query after "//&".
 function basename(file: string): string {
-  const withoutQuery = file.split(/[?#]/)[0];
-  return withoutQuery.slice(withoutQuery.lastIndexOf("/") + 1);
+  const withoutQuery = file.split(/[?#]|\/\/&/)[0];
+  const name = withoutQuery.slice(withoutQuery.lastIndexOf("/") + 1);
+  return /^[\w.-]{1,100}$/.test(name) ? name : "";
 }
 
 function cleanFunction(name: string | undefined): string {
   if (!name) return "?";
-  return /^[\w$.<>[\] ]+$/.test(name)
+  return /^[\w$.<>[\]?]+$/.test(name)
     ? name.slice(0, MAX_FUNCTION_LENGTH)
     : "?";
 }
@@ -90,10 +94,14 @@ function toNumber(value: string | undefined): number | undefined {
 }
 
 /** Frame locations from a JS stack, outermost caller first (the order
- * PostHog's raw stack traces use), dropping message lines entirely. */
-export function parseStack(stack: string): StackFrame[] {
+ * PostHog's raw stack traces use). Engines start the stack with the
+ * message, which may span lines that look like frames, so it is cut off
+ * first (`message`), and anything else that isn't a frame is dropped. */
+export function parseStack(stack: string, message = ""): StackFrame[] {
   const frames: StackFrame[] = [];
-  for (const line of stack.split("\n")) {
+  const index = message ? stack.indexOf(message) : -1;
+  const framesOnly = index === -1 ? stack : stack.slice(index + message.length);
+  for (const line of framesOnly.split("\n")) {
     const trimmed = line.trim();
     const match = trimmed.startsWith("at ")
       ? V8_FRAME.exec(trimmed)

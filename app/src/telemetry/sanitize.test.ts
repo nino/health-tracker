@@ -45,6 +45,12 @@ describe("sanitizeMessage", () => {
       "comment was '…'",
     );
     expect(sanitizeMessage("value `7`")).toBe("value `…`");
+    // A contraction's apostrophe must not pair with the real quote.
+    expect(sanitizeMessage("Couldn't save 'felt awful after dinner'")).toBe(
+      "Couldn't save '…'",
+    );
+    // Capitalised words could be a symptom or item name.
+    expect(sanitizeMessage("Bad value 'Migraine'")).toBe("Bad value '…'");
   });
 
   test("keeps versions and hex glued to letters", () => {
@@ -136,6 +142,15 @@ describe("parseStack", () => {
         in_app: true,
       },
     ]);
+  });
+
+  test("Metro dev URLs and odd file names", () => {
+    const [frame] = parseStack(
+      "at fn (http://10.0.0.5:8081/index.bundle//&platform=ios&dev=true:12:34)",
+    );
+    expect(frame.filename).toBe("index.bundle");
+    expect(parseStack("at fn (my diary entry.js:1:2)")).toEqual([]);
+    expect(parseStack("at some words (a.js:1:2)")[0].function).toBe("?");
   });
 
   test("caps the frame count and survives garbage", () => {

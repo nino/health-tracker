@@ -63,6 +63,5 @@ export function saveEntry(
   entryStore.add(kind, value, date, new Date(), valueText);
   void queryClient.invalidateQueries({ queryKey: entryKeys.byKind(kind) });
   void queryClient.invalidateQueries({ queryKey: entryKeys.lastDates() });
-  telemetry.capture({ name: "entry_logged", category: entryCategory(kind) });
   void mirror().catch((error) => reportError(error, "mirror"));
 }

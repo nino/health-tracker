@@ -3,6 +3,7 @@ import { randomUUID } from "expo-crypto";
 import { Platform } from "react-native";
 
 import {
+  discardPendingCrashReport,
   getErrorReportingId,
   savePendingCrashReport,
   takePendingCrashReport,
@@ -13,10 +14,11 @@ import { createRateLimiter } from "../telemetry/rateLimit";
 import { appDb } from "./appDb";
 
 // Opt-in error reports (Settings → "Send error reports") to PostHog. The
-// key and host are build-time config: EXPO_PUBLIC_POSTHOG_KEY and
-// EXPO_PUBLIC_POSTHOG_HOST (EAS environment variables, or .env.local for a
-// local build). Without either, this is a no-op. Everything that decides
-// what is sent lives in src/telemetry/ and is unit-tested.
+// key and host are app config (`expo.extra.posthog` in app.json; a phc_ key
+// is public by design). Without them, this is a no-op. Everything that
+// decides what is sent lives in src/telemetry/ and is unit-tested.
+
+const MAX_EVENTS_PER_CONTEXT = 10; // an hour, within the overall 30
 
 const OS_NAMES: Partial<Record<typeof Platform.OS, string>> = {
   ios: "iOS",
@@ -24,30 +26,37 @@ const OS_NAMES: Partial<Record<typeof Platform.OS, string>> = {
   web: "Web",
 };
 
+const posthogExtra = Constants.expoConfig?.extra?.posthog as
+  { apiKey?: string; host?: string } | undefined;
+
 export const telemetry = createTelemetry({
-  // Literal member access: Expo inlines EXPO_PUBLIC_* only when written so.
-  config: telemetryConfig(
-    process.env.EXPO_PUBLIC_POSTHOG_KEY,
-    process.env.EXPO_PUBLIC_POSTHOG_HOST,
-  ),
+  config: telemetryConfig(posthogExtra?.apiKey, posthogExtra?.host),
   distinctId: () => getErrorReportingId(appDb),
   common: {
+    // One PostHog project serves several apps; this tells them apart.
+    $app_name: "health-tracker",
     $app_version: Constants.expoConfig?.version ?? "unknown",
     $os: OS_NAMES[Platform.OS] ?? Platform.OS,
     $os_version: String(Platform.Version),
   },
-  send: (url, body) =>
-    fetch(url, {
+  send: async (url, body) => {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
-    }),
+    });
+    // A rejected event must not count as sent (a kept crash report would
+    // be discarded).
+    if (!response.ok) throw new Error(`PostHog: HTTP ${response.status}`);
+  },
   limiter: createRateLimiter(),
+  contextLimiter: () => createRateLimiter(MAX_EVENTS_PER_CONTEXT),
   now: () => new Date(),
   newId: randomUUID,
   pending: {
     save: (body) => savePendingCrashReport(appDb, body),
     take: () => takePendingCrashReport(appDb),
+    discard: (body) => discardPendingCrashReport(appDb, body),
   },
 });
 

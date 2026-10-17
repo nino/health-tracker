@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { DEFAULT_ENABLED_SYMPTOM_IDS } from "../catalog";
 import { migrate } from "./migrations";
 import {
+  discardPendingCrashReport,
   getEnabledSymptomIds,
   getErrorReportingId,
   getSetting,
@@ -68,6 +69,12 @@ describe("settings", () => {
     const db = freshDb();
     savePendingCrashReport(db, "{}");
     expect(takePendingCrashReport(db)).toBe("{}");
+    expect(takePendingCrashReport(db)).toBeNull();
+    savePendingCrashReport(db, "{}");
+    discardPendingCrashReport(db, "{other}");
+    expect(takePendingCrashReport(db)).toBe("{}");
+    savePendingCrashReport(db, "{}");
+    discardPendingCrashReport(db, "{}");
     expect(takePendingCrashReport(db)).toBeNull();
     savePendingCrashReport(db, "{}");
     optOutOfErrorReporting(db);

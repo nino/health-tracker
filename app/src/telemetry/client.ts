@@ -23,7 +23,12 @@ export function telemetryConfig(
 
 /** Where a crash report waits for the next launch: a fatal error kills the
  * app before its fetch can finish. Holds at most one report. */
-export type PendingStore = { save(body: string): void; take(): string | null };
+export type PendingStore = {
+  save(body: string): void;
+  take(): string | null;
+  /** Delete the kept report only if it is still this one. */
+  discard(body: string): void;
+};
 
 export type TelemetryDeps = {
   config: TelemetryConfig | null;
@@ -33,6 +38,9 @@ export type TelemetryDeps = {
   common: Record<string, string>;
   send: (url: string, body: string) => Promise<unknown>;
   limiter: RateLimiter;
+  /** A second, per-context cap, so one noisy source (a backend that fails
+   * every write) can't use up the budget other errors need. */
+  contextLimiter?: () => RateLimiter;
   now: () => Date;
   newId: () => string;
   pending?: PendingStore;
@@ -86,7 +94,7 @@ export function exceptionList(
       });
       break;
     }
-    const frames = parseStack(current.stack ?? "");
+    const frames = parseStack(current.stack ?? "", current.message);
     list.push({
       type: sanitizeErrorType(current.name),
       value: redactMessage ? "[redacted]" : sanitizeMessage(current.message),
@@ -101,6 +109,17 @@ export function exceptionList(
 export function createTelemetry(deps: TelemetryDeps): Telemetry {
   const { config } = deps;
   const url = config && `${config.host}/i/v0/e/`;
+  const contextLimiters = new Map<ErrorContext, RateLimiter>();
+
+  function contextAllows(context: ErrorContext): boolean {
+    if (!deps.contextLimiter) return true;
+    let limiter = contextLimiters.get(context);
+    if (!limiter) {
+      limiter = deps.contextLimiter();
+      contextLimiters.set(context, limiter);
+    }
+    return limiter.tryAcquire(deps.now().getTime());
+  }
 
   function currentId(): string | null {
     try {
@@ -146,6 +165,7 @@ export function createTelemetry(deps: TelemetryDeps): Telemetry {
         if (!config) return;
         const distinctId = currentId();
         if (distinctId === null) return;
+        if (!options.fatal && !contextAllows(context)) return;
         const handled = options.handled ?? true;
         const payload = body(distinctId, "$exception", {
           $exception_list: exceptionList(error, handled, options.redactMessage),
@@ -155,7 +175,7 @@ export function createTelemetry(deps: TelemetryDeps): Telemetry {
         });
         if (options.fatal && deps.pending) {
           deps.pending.save(payload);
-          post(payload, () => deps.pending?.take());
+          post(payload, () => deps.pending?.discard(payload));
         } else {
           post(payload);
         }

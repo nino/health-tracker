@@ -69,3 +69,12 @@ export function takePendingCrashReport(db: SqlDriver): string | null {
   if (body !== null) deleteSetting(db, PENDING_CRASH_REPORT_KEY);
   return body;
 }
+
+/** Delete the kept crash report only if it is still `body` (a newer one
+ * may have replaced it while `body` was being sent). */
+export function discardPendingCrashReport(db: SqlDriver, body: string): void {
+  db.run(`DELETE FROM settings WHERE key = ? AND value = ?`, [
+    PENDING_CRASH_REPORT_KEY,
+    body,
+  ]);
+}
