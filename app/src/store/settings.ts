@@ -63,11 +63,10 @@ export function savePendingCrashReport(db: SqlDriver, body: string): void {
   setSetting(db, PENDING_CRASH_REPORT_KEY, body);
 }
 
-/** The crash report kept from a previous launch, removed as it is read. */
-export function takePendingCrashReport(db: SqlDriver): string | null {
-  const body = getSetting(db, PENDING_CRASH_REPORT_KEY);
-  if (body !== null) deleteSetting(db, PENDING_CRASH_REPORT_KEY);
-  return body;
+/** The crash report kept from a previous launch. It stays until
+ * `discardPendingCrashReport` removes it after a successful send. */
+export function peekPendingCrashReport(db: SqlDriver): string | null {
+  return getSetting(db, PENDING_CRASH_REPORT_KEY);
 }
 
 /** Delete the kept crash report only if it is still `body` (a newer one

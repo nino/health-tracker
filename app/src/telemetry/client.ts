@@ -25,7 +25,8 @@ export function telemetryConfig(
  * app before its fetch can finish. Holds at most one report. */
 export type PendingStore = {
   save(body: string): void;
-  take(): string | null;
+  /** The kept report, left in place until it has been sent. */
+  peek(): string | null;
   /** Delete the kept report only if it is still this one. */
   discard(body: string): void;
 };
@@ -198,9 +199,12 @@ export function createTelemetry(deps: TelemetryDeps): Telemetry {
 
     flushPending() {
       try {
-        const payload = deps.pending?.take();
-        if (!payload || !config || currentId() === null) return;
-        post(payload);
+        const pending = deps.pending;
+        const payload = pending?.peek();
+        if (!pending || !payload || !config || currentId() === null) return;
+        // Deleted only once it has gone through, so a failed send (offline at
+        // launch) keeps it for the next one.
+        post(payload, () => pending.discard(payload));
       } catch {
         // as above
       }

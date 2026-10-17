@@ -48,10 +48,8 @@ function memoryPending(): PendingStore & { body: string | null } {
     save(body) {
       this.body = body;
     },
-    take() {
-      const body = this.body;
-      this.body = null;
-      return body;
+    peek() {
+      return this.body;
     },
   };
 }
@@ -219,8 +217,21 @@ describe("createTelemetry", () => {
 
     const nextLaunch = setup({ pending });
     nextLaunch.telemetry.flushPending();
+    await flush();
     expect(nextLaunch.sent.map((s) => s.body)).toEqual([kept]);
     expect(pending.body).toBeNull();
+  });
+
+  test("a kept report survives a failed send at the next launch", async () => {
+    const pending = memoryPending();
+    pending.save('{"event":"$exception"}');
+    const offline = setup({
+      pending,
+      send: () => Promise.reject(new Error("offline")),
+    });
+    offline.telemetry.flushPending();
+    await flush();
+    expect(pending.body).toBe('{"event":"$exception"}');
   });
 
   test("a fatal report that got through is not sent again", async () => {

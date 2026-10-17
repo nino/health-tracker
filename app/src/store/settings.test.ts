@@ -12,7 +12,7 @@ import {
   savePendingCrashReport,
   setEnabledSymptomIds,
   setSetting,
-  takePendingCrashReport,
+  peekPendingCrashReport,
 } from "./settings";
 import { memoryDriver } from "./testDriver";
 
@@ -65,19 +65,18 @@ describe("settings", () => {
     expect(getSetting(db, "errorReportingId")).toBeNull();
   });
 
-  test("a pending crash report is read once, and opting out discards it", () => {
+  test("a pending crash report stays until discarded, and opting out discards it", () => {
     const db = freshDb();
     savePendingCrashReport(db, "{}");
-    expect(takePendingCrashReport(db)).toBe("{}");
-    expect(takePendingCrashReport(db)).toBeNull();
-    savePendingCrashReport(db, "{}");
+    expect(peekPendingCrashReport(db)).toBe("{}");
+    expect(peekPendingCrashReport(db)).toBe("{}");
     discardPendingCrashReport(db, "{other}");
-    expect(takePendingCrashReport(db)).toBe("{}");
+    expect(peekPendingCrashReport(db)).toBe("{}");
     savePendingCrashReport(db, "{}");
     discardPendingCrashReport(db, "{}");
-    expect(takePendingCrashReport(db)).toBeNull();
+    expect(peekPendingCrashReport(db)).toBeNull();
     savePendingCrashReport(db, "{}");
     optOutOfErrorReporting(db);
-    expect(takePendingCrashReport(db)).toBeNull();
+    expect(peekPendingCrashReport(db)).toBeNull();
   });
 });

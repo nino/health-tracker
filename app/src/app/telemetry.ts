@@ -6,7 +6,7 @@ import {
   discardPendingCrashReport,
   getErrorReportingId,
   savePendingCrashReport,
-  takePendingCrashReport,
+  peekPendingCrashReport,
 } from "../store/settings";
 import { createTelemetry, telemetryConfig } from "../telemetry/client";
 import { type ErrorContext } from "../telemetry/events";
@@ -55,7 +55,7 @@ export const telemetry = createTelemetry({
   newId: randomUUID,
   pending: {
     save: (body) => savePendingCrashReport(appDb, body),
-    take: () => takePendingCrashReport(appDb),
+    peek: () => peekPendingCrashReport(appDb),
     discard: (body) => discardPendingCrashReport(appDb, body),
   },
 });
