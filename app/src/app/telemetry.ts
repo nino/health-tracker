@@ -29,8 +29,17 @@ const OS_NAMES: Partial<Record<typeof Platform.OS, string>> = {
 const posthogExtra = Constants.expoConfig?.extra?.posthog as
   { apiKey?: string; host?: string } | undefined;
 
+const config = telemetryConfig(posthogExtra?.apiKey, posthogExtra?.host);
+
+// Sends fail silently in release builds; in development, say why, so a
+// missing config (Metro started before app.json changed) or a rejected
+// request shows up in the console.
+if (__DEV__ && !config) {
+  console.warn("Error reports are off: no PostHog key/host in expo.extra");
+}
+
 export const telemetry = createTelemetry({
-  config: telemetryConfig(posthogExtra?.apiKey, posthogExtra?.host),
+  config,
   distinctId: () => getErrorReportingId(appDb),
   common: {
     // One PostHog project serves several apps; this tells them apart.
@@ -40,14 +49,20 @@ export const telemetry = createTelemetry({
     $os_version: String(Platform.Version),
   },
   send: async (url, body) => {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    });
-    // A rejected event must not count as sent (a kept crash report would
-    // be discarded).
-    if (!response.ok) throw new Error(`PostHog: HTTP ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      // A rejected event must not count as sent (a kept crash report would
+      // be discarded).
+      if (!response.ok) throw new Error(`PostHog: HTTP ${response.status}`);
+      if (__DEV__) console.warn("Error report sent");
+    } catch (error) {
+      if (__DEV__) console.warn("Error report not sent:", error);
+      throw error;
+    }
   },
   limiter: createRateLimiter(),
   contextLimiter: () => createRateLimiter(MAX_EVENTS_PER_CONTEXT),
