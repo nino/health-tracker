@@ -5,7 +5,11 @@ import { type SqlDriver, type SqlParam } from "./driver";
 // The app-side driver. Untestable by `bun test` (native module) — keep it a
 // thin adapter with no logic; everything interesting lives behind SqlDriver.
 class ExpoSqliteDriver implements SqlDriver {
-  constructor(private db: SQLiteDatabase) {}
+  private readonly db: SQLiteDatabase;
+
+  constructor(db: SQLiteDatabase) {
+    this.db = db;
+  }
 
   run(sql: string, params: SqlParam[] = []): void {
     this.db.runSync(sql, params);

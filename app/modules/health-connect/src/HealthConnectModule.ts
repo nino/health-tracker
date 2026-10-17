@@ -1,10 +1,12 @@
 import { NativeModule, requireOptionalNativeModule } from "expo";
 
-export enum HealthConnectSdkStatus {
-  Unavailable = 1,
-  UpdateRequired = 2,
-  Available = 3,
-}
+export const HealthConnectSdkStatus = {
+  Unavailable: 1,
+  UpdateRequired: 2,
+  Available: 3,
+} as const;
+export type HealthConnectSdkStatus =
+  (typeof HealthConnectSdkStatus)[keyof typeof HealthConnectSdkStatus];
 
 declare class HealthConnectModule extends NativeModule {
   getSdkStatus(): HealthConnectSdkStatus;
