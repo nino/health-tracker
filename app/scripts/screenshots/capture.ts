@@ -80,6 +80,15 @@ async function pinchOut(locator: import("playwright-core").Locator) {
     touchPoints: [],
   });
 }
+// expo-sqlite's sync channel gives up after 1e6 Atomics.pause() spins, which
+// a slow container burns through mid-import ("Sync operation timeout").
+// Without Atomics.pause it falls back to a 1e9 plain-spin bound.
+await page.addInitScript(() => {
+  delete (Atomics as { pause?: unknown }).pause;
+});
+// Fake clock (runs in real time until paused) so animations can be stepped
+// frame-accurately below; screenshots are too slow to catch them otherwise.
+await page.clock.install();
 page.on("pageerror", (err) => console.error("page error:", err.message));
 
 await page.goto(`http://127.0.0.1:${server.port}/`);
@@ -110,8 +119,10 @@ await page.screenshot({ path: name("log-stress") });
 await page.getByText("Cancel").click();
 await page.getByText("Log Symptom").waitFor();
 
-await page.getByText("Flossed").click();
-await page.getByText("Log that it happened.").waitFor();
+await page.getByText("Dishes").click();
+await page
+  .getByPlaceholder("Comment (optional)")
+  .fill("Listened to a podcast, barely noticed doing them.");
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("log-event") });
 await page.getByText("Cancel").click();
@@ -121,13 +132,6 @@ await page.getByText("Weight").click();
 await page.getByPlaceholder("0").fill("72.4");
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("log-numeric") });
-await page.getByText("Cancel").click();
-await page.getByText("Log Symptom").waitFor();
-
-await page.getByText("Dishes").click();
-await page.getByPlaceholder("What happened?").waitFor();
-await page.waitForTimeout(400);
-await page.screenshot({ path: name("log-text-item") });
 await page.getByText("Cancel").click();
 await page.getByText("Log Symptom").waitFor();
 
@@ -184,18 +188,38 @@ await page.screenshot({ path: name("history-symptoms") });
 await page.getByText("⚖️ Weight").last().scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
 await page.screenshot({ path: name("history-numeric") });
-// The event bar chart sits at the bottom of the history sheet.
-await page.getByText("per week").scrollIntoViewIfNeeded();
+// The event cards sit at the bottom of the history sheet: Dishes (logged
+// with comments, listed under its chart), then Flossed (chart only).
+await page.getByText("Dishes · per week").scrollIntoViewIfNeeded();
+await page.waitForTimeout(600);
+await page.screenshot({ path: name("history-event-comments") });
+const flossed = page.getByText("Flossed · per week");
+await flossed.scrollIntoViewIfNeeded();
 await page.waitForTimeout(600);
 await page.screenshot({ path: name("history-events") });
-await pinchOut(page.getByText("per week").locator("xpath=..").locator("svg"));
+await pinchOut(flossed.locator("xpath=..").locator("svg"));
 await page.waitForTimeout(400);
 await page.screenshot({ path: name("history-events-zoomed") });
 await page.getByText("Reset zoom").click();
-// Text items list their entries last.
-await page.getByText("🍽️ Dishes").last().scrollIntoViewIfNeeded();
-await page.waitForTimeout(600);
-await page.screenshot({ path: name("history-text") });
+await page.getByText("Done").click();
+await page.getByText("Log Symptom").waitFor();
+
+// Save & Next swaps sheets inside one modal: the saved card is stamped and
+// flicked away while the next one rises. Last, because it saves an entry.
+await page.getByText("Stress", { exact: true }).first().click();
+await page.getByText("Save & Next").waitFor();
+await page.waitForTimeout(400);
+await page.getByText("4", { exact: true }).click();
+await page.clock.pauseAt(Date.now() + 1000);
+await page.getByText("Save & Next").click();
+let prev = 0;
+for (const ms of [30, 60, 90, 120]) {
+  await page.clock.runFor(ms - prev);
+  prev = ms;
+  await page.screenshot({ path: name(`save-next-${ms}ms`) });
+}
+await page.clock.runFor(600);
+await page.screenshot({ path: name("save-next-arrived") });
 
 await browser.close();
 server.stop();

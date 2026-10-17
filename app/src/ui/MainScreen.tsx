@@ -22,6 +22,7 @@ import { MetricLogSheet } from "./MetricLogSheet";
 import { NoteLogSheet } from "./NoteLogSheet";
 import { NumericLogSheet } from "./NumericLogSheet";
 import { SettingsSheet } from "./SettingsSheet";
+import { SheetDeck } from "./SheetDeck";
 import { SymptomLogSheet } from "./SymptomLogSheet";
 import { Tile, PlainTile } from "./Tile";
 import { useTheme } from "./theme";
@@ -41,9 +42,12 @@ export function MainScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const now = useMinuteTick();
-  const [selectedSymptom, setSelectedSymptom] = useState<Symptom | null>(null);
-  const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
-  // Event, numeric, and text items share one selection; the sheet is picked
+  // The metric or symptom being logged. Both kinds share one SheetDeck so
+  // Save & Next can swap sheets without dismissing the modal.
+  const [logItem, setLogItem] = useState<Metric | Symptom | null>(null);
+  // The just-saved item whose sheet is still flying off the deck.
+  const [leavingItem, setLeavingItem] = useState<Metric | Symptom | null>(null);
+  // Event and numeric items share one selection; the sheet is picked
   // by kind. (Severity/rating items flow through the symptom/metric states.)
   const [selectedCustom, setSelectedCustom] = useState<CustomItem | null>(null);
   const [showingNote, setShowingNote] = useState(false);
@@ -69,24 +73,23 @@ export function MainScreen() {
       .map(customItemToSymptom),
   ].sort((a, b) => a.name.localeCompare(b.name));
   const gridMetrics = [...METRICS, ...customMetrics];
-  // Events, numeric, and text items tile after the symptoms; they already
-  // sort alphabetically (listCustomItems orders by name).
+  // Events and numeric items tile after the symptoms; they already sort
+  // alphabetically (listCustomItems orders by name).
   const otherItems = custom.filter(
-    (item) =>
-      item.kind === "event" || item.kind === "numeric" || item.kind === "text",
+    (item) => item.kind === "event" || item.kind === "numeric",
   );
   const dates = lastDates.data ?? new Map<string, Date>();
 
   const pickRandom = () => {
     const pick = weightedRandomByRecency(enabledSymptoms, dates);
-    if (pick) setSelectedSymptom(pick);
+    if (pick) setLogItem(pick);
   };
 
   // Grid order for Save & Next: metrics first, then enabled symptoms.
   // Events and the note tile stay out: next-up is for things always worth
   // logging, and there is no "didn't happen" log.
   const gridItems: (Metric | Symptom)[] = [...gridMetrics, ...enabledSymptoms];
-  const currentKind = selectedMetric?.id ?? selectedSymptom?.id ?? "";
+  const currentKind = logItem?.id ?? "";
   const nextAvailable =
     nextUp(gridItems, currentKind, dates, now) !== undefined;
 
@@ -101,17 +104,31 @@ export function MainScreen() {
       new Date(),
     );
     if (!next) {
-      setSelectedMetric(null);
-      setSelectedSymptom(null);
+      closeLog();
       return;
     }
-    if ("valueKind" in next) {
-      setSelectedMetric(null);
-      setSelectedSymptom(next);
-    } else {
-      setSelectedSymptom(null);
-      setSelectedMetric(next);
-    }
+    setLeavingItem(logItem);
+    setLogItem(next);
+  };
+
+  const closeLog = () => {
+    setLogItem(null);
+    setLeavingItem(null);
+  };
+
+  const logSheet = (item: Metric | Symptom, leaving: boolean) => {
+    // A leaving sheet is inert (the deck blocks its touches); it keeps
+    // Save & Next enabled since that's the button that sent it away.
+    const common = {
+      onClose: leaving ? () => {} : closeLog,
+      nextAvailable: leaving || nextAvailable,
+      onSaveAndNext: leaving ? () => {} : advanceToNext,
+    };
+    return "valueKind" in item ? (
+      <SymptomLogSheet symptom={item} {...common} />
+    ) : (
+      <MetricLogSheet metric={item} {...common} />
+    );
   };
 
   return (
@@ -149,7 +166,7 @@ export function MainScreen() {
             icon={metric.icon}
             lastDate={dates.get(metric.id) ?? null}
             now={now}
-            onPress={() => setSelectedMetric(metric)}
+            onPress={() => setLogItem(metric)}
           />
         ))}
         {enabledSymptoms.map((symptom) => (
@@ -159,7 +176,7 @@ export function MainScreen() {
             icon={symptom.icon}
             lastDate={dates.get(symptom.id) ?? null}
             now={now}
-            onPress={() => setSelectedSymptom(symptom)}
+            onPress={() => setLogItem(symptom)}
           />
         ))}
         {otherItems.map((item) => (
@@ -187,22 +204,17 @@ export function MainScreen() {
         )}
       </ScrollView>
 
-      {selectedSymptom && (
-        <SymptomLogSheet
-          key={selectedSymptom.id}
-          symptom={selectedSymptom}
-          onClose={() => setSelectedSymptom(null)}
-          nextAvailable={nextAvailable}
-          onSaveAndNext={advanceToNext}
-        />
-      )}
-      {selectedMetric && (
-        <MetricLogSheet
-          key={selectedMetric.id}
-          metric={selectedMetric}
-          onClose={() => setSelectedMetric(null)}
-          nextAvailable={nextAvailable}
-          onSaveAndNext={advanceToNext}
+      {logItem && (
+        <SheetDeck
+          current={{ key: logItem.id, node: logSheet(logItem, false) }}
+          leaving={
+            leavingItem && {
+              key: leavingItem.id,
+              node: logSheet(leavingItem, true),
+            }
+          }
+          onLeft={() => setLeavingItem(null)}
+          onRequestClose={closeLog}
         />
       )}
       {selectedCustom?.kind === "event" && (
@@ -214,13 +226,6 @@ export function MainScreen() {
       )}
       {selectedCustom?.kind === "numeric" && (
         <NumericLogSheet
-          key={selectedCustom.id}
-          item={selectedCustom}
-          onClose={() => setSelectedCustom(null)}
-        />
-      )}
-      {selectedCustom?.kind === "text" && (
-        <NoteLogSheet
           key={selectedCustom.id}
           item={selectedCustom}
           onClose={() => setSelectedCustom(null)}

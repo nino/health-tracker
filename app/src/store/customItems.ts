@@ -8,15 +8,14 @@ import { type SqlDriver } from "./driver";
 // catalog only).
 
 /** "severity" reuses the built-in symptom picker/charts; "rating" is a 1–10
- * scale like the metrics; "event" is a bare "it happened" log (value always
- * 1, charted as weekly counts, excluded from next-up); "numeric" is any
+ * scale like the metrics; "event" is an "it happened" log (value always 1,
+ * with an optional comment in entries.value_text; charted as weekly counts
+ * with the comments listed below, excluded from next-up); "numeric" is any
  * number the user types (reps, weight — decimals allowed, charted with a
- * data-derived y-domain); "text" is a per-item quick note (value always 0,
- * text in entries.value_text, listed — not charted — in history). The kind
- * is fixed after creation — changing it would silently redefine what stored
- * values mean. */
-export type CustomItemKind =
-  "severity" | "rating" | "event" | "numeric" | "text";
+ * data-derived y-domain). The kind is fixed after creation — changing it
+ * would silently redefine what stored values mean. (A separate "text" kind
+ * existed until schema v7, which folded it into "event".) */
+export type CustomItemKind = "severity" | "rating" | "event" | "numeric";
 
 /** Short kind label for list rows and pickers. */
 export const CUSTOM_KIND_LABELS: Record<CustomItemKind, string> = {
@@ -24,7 +23,6 @@ export const CUSTOM_KIND_LABELS: Record<CustomItemKind, string> = {
   rating: "1–10",
   event: "Event",
   numeric: "Number",
-  text: "Text",
 };
 
 export interface CustomItem {

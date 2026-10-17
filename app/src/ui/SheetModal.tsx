@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import {
   Modal,
   Platform,
@@ -12,6 +12,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScrollLockContext } from "./scrollLock";
 import { useTheme } from "./theme";
+
+// Set by a host that owns the Modal itself (SheetDeck, for the Save & Next
+// chain): sheets inside it render only their frame, so swapping one log
+// sheet for the next animates inside a single presented modal instead of
+// a full native dismiss followed by a full native present.
+export const HostedSheetContext = createContext(false);
 
 // Shared sheet shell: title bar, scrollable content. Sheets with a primary
 // action (the log sheets) render their own Save/Cancel buttons in the
@@ -30,9 +36,47 @@ export function SheetModal(props: {
   // iOS pageSheet floats below the status bar; Android modals are
   // edge-to-edge, so the header needs the top inset there.
   const headerTopInset = Platform.OS === "android" ? insets.top : 0;
+  const hosted = useContext(HostedSheetContext);
   // Charts switch scrolling off for the duration of a pinch/pan (see
   // scrollLock.tsx); everything else leaves it alone.
   const [scrollLocked, setScrollLocked] = useState(false);
+  const frame = (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View
+        style={[
+          styles.header,
+          { borderBottomColor: theme.border, paddingTop: 14 + headerTopInset },
+        ]}
+      >
+        {closeLabel !== null ? (
+          <Pressable onPress={props.onClose} hitSlop={8}>
+            <Text style={[styles.headerButton, { color: theme.tint }]}>
+              {closeLabel}
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
+        <Text style={[styles.title, { color: theme.text }]}>{props.title}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      <ScrollView
+        // Without this, the first tap on Save while the keyboard is up
+        // only dismisses the keyboard and never reaches the button.
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!scrollLocked}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: 40 + insets.bottom },
+        ]}
+      >
+        <ScrollLockContext.Provider value={setScrollLocked}>
+          {props.children}
+        </ScrollLockContext.Provider>
+      </ScrollView>
+    </View>
+  );
+  if (hosted) return frame;
   return (
     <Modal
       visible={props.visible}
@@ -40,42 +84,7 @@ export function SheetModal(props: {
       presentationStyle="pageSheet"
       onRequestClose={props.onClose}
     >
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View
-          style={[
-            styles.header,
-            {
-              borderBottomColor: theme.border,
-              paddingTop: 14 + headerTopInset,
-            },
-          ]}
-        >
-          {closeLabel !== null ? (
-            <Pressable onPress={props.onClose} hitSlop={8}>
-              <Text style={[styles.headerButton, { color: theme.tint }]}>
-                {closeLabel}
-              </Text>
-            </Pressable>
-          ) : (
-            <View style={styles.headerSpacer} />
-          )}
-          <Text style={[styles.title, { color: theme.text }]}>
-            {props.title}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-        <ScrollView
-          scrollEnabled={!scrollLocked}
-          contentContainerStyle={[
-            styles.content,
-            { paddingBottom: 40 + insets.bottom },
-          ]}
-        >
-          <ScrollLockContext.Provider value={setScrollLocked}>
-            {props.children}
-          </ScrollLockContext.Provider>
-        </ScrollView>
-      </View>
+      {frame}
     </Modal>
   );
 }

@@ -7,7 +7,7 @@ import { SYMPTOMS } from "./symptoms";
 
 interface Branch {
   if: { properties: { kind: { enum: string[] } } };
-  then: { properties: { rating: Record<string, unknown> } };
+  then: { properties: { rating: Record<string, unknown>; text?: unknown } };
 }
 
 function branches(customItems: Parameters<typeof exportSchema>[0] = []) {
@@ -69,7 +69,12 @@ describe("exportSchema", () => {
     expect(
       branchFor("custom:b", all)[0].then.properties.rating.description,
     ).toContain("Higher is better");
-    expect(branchFor("custom:c", all)[0].then.properties.rating.const).toBe(1);
+    const [event] = branchFor("custom:c", all);
+    expect(event.then.properties.rating.const).toBe(1);
+    expect(event.then.properties.text).toEqual({
+      type: "string",
+      description: "Optional comment.",
+    });
   });
 
   test("omits rules for custom kinds with no items", () => {

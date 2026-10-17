@@ -118,16 +118,17 @@ export function exportSchema(customItems: SchemaCustomItem[]): Json {
           ),
         ),
       ),
-    branch(customIds("event"), {
-      const: 1,
-      description: "An occurrence; one entry per event.",
-    }),
+    branch(
+      customIds("event"),
+      { const: 1, description: "An occurrence; one entry per event." },
+      { text: { type: "string", description: "Optional comment." } },
+    ),
     branch(customIds("numeric"), {
       type: "number",
       description: "The number as typed; decimals allowed.",
     }),
     branch(
-      [NOTE_KIND, ...customIds("text")],
+      [NOTE_KIND],
       { const: 0, description: "Always 0; the content is in `text`." },
       { text: { type: "string" } },
     ),
@@ -202,9 +203,12 @@ export function exportSchema(customItems: SchemaCustomItem[]): Json {
                   title: "Same scale as a HealthKit symptom",
                 },
                 { const: "rating", title: "1–10 scale; see highIsGood" },
-                { const: "event", title: "Occurrences; rating is always 1" },
+                {
+                  const: "event",
+                  title:
+                    "Occurrences; rating is always 1, optional comment in text",
+                },
                 { const: "numeric", title: "Any number" },
-                { const: "text", title: "Notes; rating 0, content in text" },
               ],
             },
             highIsGood: {

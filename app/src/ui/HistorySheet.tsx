@@ -172,62 +172,23 @@ function NumericChartCard(props: {
   );
 }
 
-// Text items don't chart — history shows the notes themselves, newest
-// first, capped so one prolific topic can't make the sheet unscrollable.
-const MAX_TEXT_ENTRIES = 20;
-
-function TextHistoryCard(props: { item: CustomItem }) {
-  const theme = useTheme();
-  const kind = customEntryKind(props.item.id);
-  const entries = useQuery(entriesByKindOptions(kind));
-  const all = entries.data ?? [];
-  const latest = all.slice(-MAX_TEXT_ENTRIES).reverse();
-
-  return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.card, borderColor: theme.border },
-      ]}
-    >
-      <Text style={[styles.cardTitle, { color: theme.text }]}>
-        {props.item.icon} {props.item.name}
-      </Text>
-      {latest.length === 0 ? (
-        <Text style={[styles.empty, { color: theme.secondaryText }]}>
-          Nothing logged yet.
-        </Text>
-      ) : (
-        latest.map((entry) => (
-          <View key={entry.id} style={styles.textEntry}>
-            <Text
-              style={[styles.textEntryDate, { color: theme.secondaryText }]}
-            >
-              {entry.date.toLocaleDateString()}
-            </Text>
-            <Text style={{ color: theme.text }}>{entry.valueText}</Text>
-          </View>
-        ))
-      )}
-      {all.length > MAX_TEXT_ENTRIES && (
-        <Text style={[styles.empty, { color: theme.secondaryText }]}>
-          Showing the latest {MAX_TEXT_ENTRIES} of {all.length}.
-        </Text>
-      )}
-    </View>
-  );
-}
-
 // Event items chart as occurrences per week — the display-mode control
-// doesn't apply (a raw scatter of "1" carries no information).
+// doesn't apply (a raw scatter of "1" carries no information). Entries
+// logged with a comment are listed under the chart, newest first, capped so
+// one prolific item can't make the sheet unscrollable.
+const MAX_COMMENTS = 20;
+
 function EventChartCard(props: { item: CustomItem; color: string }) {
   const theme = useTheme();
   const kind = customEntryKind(props.item.id);
   const entries = useQuery(entriesByKindOptions(kind));
+  const all = entries.data ?? [];
   const points = weeklyCounts(
-    (entries.data ?? []).map((e) => e.date),
+    all.map((e) => e.date),
     new Date(),
   );
+  const commented = all.filter((e) => e.valueText !== null);
+  const latest = commented.slice(-MAX_COMMENTS).reverse();
 
   return (
     <View
@@ -245,6 +206,19 @@ function EventChartCard(props: { item: CustomItem; color: string }) {
         </Text>
       ) : (
         <BarChart points={points} color={props.color} />
+      )}
+      {latest.map((entry) => (
+        <View key={entry.id} style={styles.comment}>
+          <Text style={[styles.commentDate, { color: theme.secondaryText }]}>
+            {entry.date.toLocaleDateString()}
+          </Text>
+          <Text style={{ color: theme.text }}>{entry.valueText}</Text>
+        </View>
+      ))}
+      {commented.length > MAX_COMMENTS && (
+        <Text style={[styles.empty, { color: theme.secondaryText }]}>
+          Showing the latest {MAX_COMMENTS} of {commented.length} comments.
+        </Text>
       )}
     </View>
   );
@@ -301,11 +275,6 @@ export function HistorySheet(props: { onClose: () => void }) {
         .map((item) => (
           <EventChartCard key={item.id} item={item} color={theme.tint} />
         ))}
-      {custom
-        .filter((item) => item.kind === "text")
-        .map((item) => (
-          <TextHistoryCard key={item.id} item={item} />
-        ))}
     </SheetModal>
   );
 }
@@ -319,6 +288,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontWeight: "600" },
   empty: { fontSize: 13 },
-  textEntry: { gap: 1 },
-  textEntryDate: { fontSize: 11 },
+  comment: { gap: 1 },
+  commentDate: { fontSize: 11 },
 });

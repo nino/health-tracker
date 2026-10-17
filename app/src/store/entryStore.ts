@@ -10,8 +10,8 @@ export interface Entry {
   id: string;
   kind: string;
   value: number;
-  /** Free text — quick-note entries (kind "note") and text custom items
-   * only, null elsewhere. */
+  /** Free text — quick-note entries (kind "note") and the optional comment
+   * on an event entry; null elsewhere. */
   valueText: string | null;
   /** The user-set sample date (may be backdated). */
   date: Date;
@@ -216,7 +216,7 @@ export class EntryStore {
     }
     let added = 0;
     for (const candidate of entries) {
-      // Text-carrying entries (notes, text custom items) additionally
+      // Text-carrying entries (notes, commented events) additionally
       // compare their text: kind+time alone would silently drop a
       // *different* thought that happens to sit within the window (the
       // window exists for dual-written health samples, which text entries
