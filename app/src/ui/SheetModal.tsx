@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import {
   Modal,
   Platform,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScrollLockContext } from "./scrollLock";
 import { useTheme } from "./theme";
 
 // Set by a host that owns the Modal itself (SheetDeck, for the Save & Next
@@ -36,6 +37,18 @@ export function SheetModal(props: {
   // edge-to-edge, so the header needs the top inset there.
   const headerTopInset = Platform.OS === "android" ? insets.top : 0;
   const hosted = useContext(HostedSheetContext);
+  // Charts switch scrolling off for the duration of a pinch/pan (see
+  // scrollLock.tsx); everything else leaves it alone.
+  const [scrollLocks, setScrollLocks] = useState(0);
+  const acquireScrollLock = () => {
+    setScrollLocks((n) => n + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      setScrollLocks((n) => n - 1);
+    };
+  };
   const frame = (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View
@@ -60,12 +73,15 @@ export function SheetModal(props: {
         // Without this, the first tap on Save while the keyboard is up
         // only dismisses the keyboard and never reaches the button.
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={scrollLocks === 0}
         contentContainerStyle={[
           styles.content,
           { paddingBottom: 40 + insets.bottom },
         ]}
       >
-        {props.children}
+        <ScrollLockContext.Provider value={acquireScrollLock}>
+          {props.children}
+        </ScrollLockContext.Provider>
       </ScrollView>
     </View>
   );

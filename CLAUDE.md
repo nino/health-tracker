@@ -34,6 +34,7 @@ Expo SDK 57, TypeScript strict, **bun** for package management (`bun install`, `
 ## Workflow
 
 - Push to `origin main` immediately after every commit (Nino's standing instruction).
+- Before opening a PR, run the `pre-pr` skill (`.claude/skills/pre-pr/`): checks, an independent code review of the diff, and fixes.
 - **PR descriptions include screenshots** of any visible change (Nino's rule, 2026-07-28). Capture them from a real running app — a simulator/emulator locally, or the web screenshot harness (below) in remote containers — commit them to `docs/screenshots/`, and embed them with URLs pinned to a commit. Filenames must be unique per capture (`<date>-<short-sha>-<label>.png`, done by `capture.ts` automatically) — never reuse a name like `screenshot.png`, or the PR's image link silently shows whatever the file becomes later.
 
 ## Web screenshot harness
