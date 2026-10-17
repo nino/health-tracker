@@ -10,10 +10,16 @@ import { createContext, useContext } from "react";
 // movement to start it, so the pinch died before its first move reached
 // JS. Disabling scrolling for the gesture's duration is the one lever the
 // child has.
-export const ScrollLockContext = createContext<(locked: boolean) => void>(
-  () => {},
+//
+// Acquiring returns that holder's own release (idempotent), and the sheet
+// stays locked while any holder remains — so one chart unmounting or
+// finishing can't unlock the sheet under another chart's gesture.
+export type AcquireScrollLock = () => () => void;
+
+export const ScrollLockContext = createContext<AcquireScrollLock>(
+  () => () => {},
 );
 
-export function useScrollLock() {
+export function useScrollLock(): AcquireScrollLock {
   return useContext(ScrollLockContext);
 }

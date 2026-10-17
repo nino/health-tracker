@@ -39,7 +39,16 @@ export function SheetModal(props: {
   const hosted = useContext(HostedSheetContext);
   // Charts switch scrolling off for the duration of a pinch/pan (see
   // scrollLock.tsx); everything else leaves it alone.
-  const [scrollLocked, setScrollLocked] = useState(false);
+  const [scrollLocks, setScrollLocks] = useState(0);
+  const acquireScrollLock = () => {
+    setScrollLocks((n) => n + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      setScrollLocks((n) => n - 1);
+    };
+  };
   const frame = (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View
@@ -64,13 +73,13 @@ export function SheetModal(props: {
         // Without this, the first tap on Save while the keyboard is up
         // only dismisses the keyboard and never reaches the button.
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={!scrollLocked}
+        scrollEnabled={scrollLocks === 0}
         contentContainerStyle={[
           styles.content,
           { paddingBottom: 40 + insets.bottom },
         ]}
       >
-        <ScrollLockContext.Provider value={setScrollLocked}>
+        <ScrollLockContext.Provider value={acquireScrollLock}>
           {props.children}
         </ScrollLockContext.Provider>
       </ScrollView>

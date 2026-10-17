@@ -78,6 +78,8 @@ interface GestureMemory {
   /** Previous two-finger pinch, if the last move was one. */
   pinch?: { distance: number; midX: number };
   touchCount: number;
+  /** Releases the sheet's scroll lock while this chart holds it. */
+  releaseScroll?: () => void;
 }
 
 // Implemented on the raw View responder props rather than PanResponder:
@@ -102,10 +104,18 @@ export function useChartViewport(full: TimeRange): ChartViewport {
     lastX: 0,
     touchCount: 0,
   });
-  const setScrollLocked = useScrollLock();
+  const acquireScrollLock = useScrollLock();
+  const unlockScroll = () => {
+    memory.current.releaseScroll?.();
+    memory.current.releaseScroll = undefined;
+  };
   // A chart unmounting mid-gesture (mode switch, sheet close) must not
-  // leave the sheet unscrollable.
-  useEffect(() => () => setScrollLocked(false), [setScrollLocked]);
+  // leave the sheet unscrollable. Releasing only this chart's own lock
+  // leaves any other chart's gesture alone.
+  useEffect(() => {
+    const m = memory.current;
+    return () => m.releaseScroll?.();
+  }, []);
 
   const pan = (deltaPx: number) => {
     const { width } = live.current;
@@ -142,13 +152,12 @@ export function useChartViewport(full: TimeRange): ChartViewport {
     memory.current.lastX = pointer(e).x;
     memory.current.touchCount = e.nativeEvent.touches.length;
     memory.current.pinch = undefined;
-    setScrollLocked(true);
+    memory.current.releaseScroll ??= acquireScrollLock();
     // Returning true blocks the native responder (Android's ScrollView)
     // from taking the touches — the same switch PanResponder exposes as
     // onShouldBlockNativeResponder.
     return true;
   };
-  const onResponderEnd = () => setScrollLocked(false);
   const onResponderMove = (e: GestureResponderEvent) => {
     const touches = e.nativeEvent.touches;
     const m = memory.current;
@@ -219,8 +228,8 @@ export function useChartViewport(full: TimeRange): ChartViewport {
       onMoveShouldSetResponder,
       onResponderGrant,
       onResponderMove,
-      onResponderRelease: onResponderEnd,
-      onResponderTerminate: onResponderEnd,
+      onResponderRelease: unlockScroll,
+      onResponderTerminate: unlockScroll,
       onResponderTerminationRequest: () => false,
     },
   };
