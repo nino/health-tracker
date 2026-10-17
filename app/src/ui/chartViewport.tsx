@@ -109,10 +109,10 @@ export function useChartViewport(full: TimeRange): ChartViewport {
   // A chart unmounting mid-gesture (mode switch, sheet close) must not
   // leave the sheet unscrollable. Releasing only this chart's own lock
   // leaves any other chart's gesture alone.
-  useEffect(() => {
+  useMountEffect(() => {
     const m = memory.current;
     return () => m.releaseScroll?.();
-  }, []);
+  });
 
   const pan = (deltaPx: number) => {
     if (width <= 0) return;
@@ -134,7 +134,7 @@ export function useChartViewport(full: TimeRange): ChartViewport {
   // the time a pinch's first move reaches JS, the native scroll view has
   // usually already started scrolling and cancelled the touches.
   const onStartShouldSetResponder = (e: GestureResponderEvent) =>
-    live.current.minSpan < 1 && e.nativeEvent.touches.length >= 2;
+    minSpan < 1 && e.nativeEvent.touches.length >= 2;
   const onMoveShouldSetResponder = (e: GestureResponderEvent) => {
     if (minSpan >= 1) return false; // nothing to zoom into
     if (e.nativeEvent.touches.length >= 2) return true;
