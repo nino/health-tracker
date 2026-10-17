@@ -47,11 +47,75 @@ export function SheetDeck(props: {
   // painting), so neither card shows its end state for a frame.
   const leavingKey = props.leaving?.key;
   const [transition, setTransition] = useState(() => newTransition(leavingKey));
-  if (transition.key !== leavingKey) {
+  if (transition?.key !== leavingKey) {
     setTransition(newTransition(leavingKey));
   }
-  const { out, enter } = transition;
 
+  const animated =
+    transition &&
+    deckStyles(transition.out, transition.enter, reduceMotion, width);
+
+  const layers = props.leaving
+    ? [
+        { card: props.leaving, leaving: true },
+        { card: props.current, leaving: false },
+      ]
+    : [{ card: props.current, leaving: false }];
+
+  return (
+    <Modal
+      visible
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={props.onRequestClose}
+    >
+      <HostedSheetContext.Provider value>
+        <View style={[styles.deck, { backgroundColor: theme.border }]}>
+          {layers.map(({ card, leaving }) => (
+            <Animated.View
+              key={card.key}
+              pointerEvents={leaving ? "none" : "auto"}
+              style={[
+                StyleSheet.absoluteFill,
+                // The leaving card flies over the arriving one.
+                { zIndex: leaving ? 1 : 0 },
+                animated && (leaving ? animated.leaving : animated.entering),
+              ]}
+            >
+              {card.node}
+              {leaving && animated && !reduceMotion && (
+                <Animated.View style={[styles.stamp, animated.stamp]}>
+                  <Text style={styles.stampText}>✓ SAVED</Text>
+                </Animated.View>
+              )}
+            </Animated.View>
+          ))}
+        </View>
+        {transition && (
+          // Keyed, so each transition mounts its own animation. Reduce
+          // Motion flipping mid-flight remounts it too, continuing from the
+          // current values with the matching timing.
+          <DeckAnimation
+            key={`${transition.key}:${reduceMotion}`}
+            out={transition.out}
+            enter={transition.enter}
+            reduceMotion={reduceMotion}
+            onDone={props.onLeft}
+          />
+        )}
+      </HostedSheetContext.Provider>
+    </Modal>
+  );
+}
+
+// Interpolations for one transition: the leaving card's flick, its ✓
+// stamp, and the arriving card's spring.
+function deckStyles(
+  out: Animated.Value,
+  enter: Animated.Value,
+  reduceMotion: boolean,
+  width: number,
+) {
   const leavingStyle = reduceMotion
     ? { opacity: out.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }
     : {
@@ -121,64 +185,12 @@ export function SheetDeck(props: {
           },
         ],
       };
-
-  const layers = props.leaving
-    ? [
-        { card: props.leaving, leaving: true },
-        { card: props.current, leaving: false },
-      ]
-    : [{ card: props.current, leaving: false }];
-
-  return (
-    <Modal
-      visible
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={props.onRequestClose}
-    >
-      <HostedSheetContext.Provider value>
-        <View style={[styles.deck, { backgroundColor: theme.border }]}>
-          {layers.map(({ card, leaving }) => (
-            <Animated.View
-              key={card.key}
-              pointerEvents={leaving ? "none" : "auto"}
-              style={[
-                StyleSheet.absoluteFill,
-                // The leaving card flies over the arriving one.
-                { zIndex: leaving ? 1 : 0 },
-                props.leaving && (leaving ? leavingStyle : enteringStyle),
-              ]}
-            >
-              {card.node}
-              {leaving && !reduceMotion && (
-                <Animated.View style={[styles.stamp, stampStyle]}>
-                  <Text style={styles.stampText}>✓ SAVED</Text>
-                </Animated.View>
-              )}
-            </Animated.View>
-          ))}
-        </View>
-        {leavingKey !== undefined && (
-          // Keyed, so each transition mounts its own animation.
-          <DeckAnimation
-            key={leavingKey}
-            out={out}
-            enter={enter}
-            reduceMotion={reduceMotion}
-            onDone={props.onLeft}
-          />
-        )}
-      </HostedSheetContext.Provider>
-    </Modal>
-  );
+  return { leaving: leavingStyle, stamp: stampStyle, entering: enteringStyle };
 }
 
 function newTransition(key: string | undefined) {
-  return {
-    key,
-    out: new Animated.Value(key === undefined ? 1 : 0),
-    enter: new Animated.Value(key === undefined ? 1 : 0),
-  };
+  if (key === undefined) return null;
+  return { key, out: new Animated.Value(0), enter: new Animated.Value(0) };
 }
 
 // Runs one card swap from mount to finish. Renders nothing; it exists so

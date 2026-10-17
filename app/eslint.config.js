@@ -20,20 +20,21 @@ module.exports = defineConfig([
           paths: [{ name: "react", importNames: EFFECTS, message: NO_EFFECTS }],
         },
       ],
-      "no-restricted-properties": [
+      // Any `X.useEffect`, so a default import under another name, or
+      // require("react").useEffect, is caught too.
+      "no-restricted-syntax": [
         "error",
-        ...EFFECTS.map((property) => ({
-          object: "React",
-          property,
+        {
+          selector: `MemberExpression[property.name=/^(${EFFECTS.join("|")})$/]`,
           message: NO_EFFECTS,
-        })),
+        },
       ],
     },
   },
   {
     // The one primitive allowed to call an effect.
     files: ["src/ui/useMountEffect.ts"],
-    rules: { "no-restricted-imports": "off" },
+    rules: { "no-restricted-imports": "off", "no-restricted-syntax": "off" },
   },
   {
     // Only where a framework genuinely demands a default export
