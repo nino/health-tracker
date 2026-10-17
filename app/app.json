@@ -40,7 +40,7 @@
       "eas": { "projectId": "90fef081-d27b-43f6-9e91-6231cdc2df6d" },
       "posthog": {
         "apiKey": "phc_khU8oAxkqoNVCHp5euLyyWCQ4W3sBAMrJnTtZGKgcWwA",
-        "host": "https://eu.i.posthog.com"
+        "host": "https://ninoes.fly.dev/relay"
       }
     },
     "owner": "ninoan"
