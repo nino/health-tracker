@@ -213,7 +213,7 @@ await page.getByText("4", { exact: true }).click();
 await page.clock.pauseAt(Date.now() + 1000);
 await page.getByText("Save & Next").click();
 let prev = 0;
-for (const ms of [60, 120, 200, 280]) {
+for (const ms of [30, 60, 90, 120]) {
   await page.clock.runFor(ms - prev);
   prev = ms;
   await page.screenshot({ path: name(`save-next-${ms}ms`) });

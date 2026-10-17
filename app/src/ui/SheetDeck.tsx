@@ -68,7 +68,7 @@ export function SheetDeck(props: {
         toValue: 1,
         // Linear in time; the interpolations below shape it (native-driven
         // interpolations can't take an easing function).
-        duration: reduceMotion ? 150 : 340,
+        duration: reduceMotion ? 150 : 120,
         easing: Easing.linear,
         useNativeDriver,
       }),
@@ -76,8 +76,8 @@ export function SheetDeck(props: {
         ? Animated.timing(enter, { toValue: 1, duration: 150, useNativeDriver })
         : Animated.spring(enter, {
             toValue: 1,
-            stiffness: 320,
-            damping: 22,
+            stiffness: 1920,
+            damping: 54,
             mass: 1,
             useNativeDriver,
           }),
