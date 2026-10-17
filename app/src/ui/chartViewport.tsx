@@ -21,6 +21,7 @@ import {
   type Viewport,
   zoomViewport,
 } from "../lib/chartViewport";
+import { useScrollLock } from "./scrollLock";
 import { useTheme } from "./theme";
 
 // Zoom/pan gestures for the history charts, shared by LineChart and
@@ -30,10 +31,11 @@ import { useTheme } from "./theme";
 // the y-axis — the fixed y-domains are the point of these charts.
 //
 // The charts live in a vertical ScrollView, so the responder is only
-// claimed once a drag is clearly horizontal (or a second finger lands);
-// vertical drags fall through to the sheet's scroll as before. Once
-// claimed, the gesture refuses termination so the scroll view can't take
-// it back mid-pan.
+// claimed once a drag is clearly horizontal, or the instant a second
+// finger lands; vertical drags fall through to the sheet's scroll as
+// before. Once claimed, the gesture refuses termination and switches the
+// sheet's scrolling off until the fingers lift (see scrollLock.tsx for why
+// refusing termination alone is not enough on iOS).
 
 /** Minimum horizontal movement before a drag counts as a pan. */
 const PAN_SLOP = 8;
@@ -57,9 +59,12 @@ export interface ChartViewport {
     ViewProps,
     | "onLayout"
     | "onTouchStart"
+    | "onStartShouldSetResponder"
     | "onMoveShouldSetResponder"
     | "onResponderGrant"
     | "onResponderMove"
+    | "onResponderRelease"
+    | "onResponderTerminate"
     | "onResponderTerminationRequest"
   > & { ref: React.RefObject<View | null> };
 }
@@ -73,6 +78,8 @@ interface GestureMemory {
   /** Previous two-finger pinch, if the last move was one. */
   pinch?: { distance: number; midX: number };
   touchCount: number;
+  /** Releases the sheet's scroll lock while this chart holds it. */
+  releaseScroll?: () => void;
 }
 
 // Implemented on the raw View responder props rather than PanResponder:
@@ -97,6 +104,18 @@ export function useChartViewport(full: TimeRange): ChartViewport {
     lastX: 0,
     touchCount: 0,
   });
+  const acquireScrollLock = useScrollLock();
+  const unlockScroll = () => {
+    memory.current.releaseScroll?.();
+    memory.current.releaseScroll = undefined;
+  };
+  // A chart unmounting mid-gesture (mode switch, sheet close) must not
+  // leave the sheet unscrollable. Releasing only this chart's own lock
+  // leaves any other chart's gesture alone.
+  useEffect(() => {
+    const m = memory.current;
+    return () => m.releaseScroll?.();
+  }, []);
 
   const pan = (deltaPx: number) => {
     const { width } = live.current;
@@ -116,6 +135,11 @@ export function useChartViewport(full: TimeRange): ChartViewport {
       memory.current.startY = y;
     }
   };
+  // A second finger landing is claimed at once, before any movement: by
+  // the time a pinch's first move reaches JS, the native scroll view has
+  // usually already started scrolling and cancelled the touches.
+  const onStartShouldSetResponder = (e: GestureResponderEvent) =>
+    live.current.minSpan < 1 && e.nativeEvent.touches.length >= 2;
   const onMoveShouldSetResponder = (e: GestureResponderEvent) => {
     if (live.current.minSpan >= 1) return false; // nothing to zoom into
     if (e.nativeEvent.touches.length >= 2) return true;
@@ -128,6 +152,7 @@ export function useChartViewport(full: TimeRange): ChartViewport {
     memory.current.lastX = pointer(e).x;
     memory.current.touchCount = e.nativeEvent.touches.length;
     memory.current.pinch = undefined;
+    memory.current.releaseScroll ??= acquireScrollLock();
     // Returning true blocks the native responder (Android's ScrollView)
     // from taking the touches — the same switch PanResponder exposes as
     // onShouldBlockNativeResponder.
@@ -199,9 +224,12 @@ export function useChartViewport(full: TimeRange): ChartViewport {
       ref,
       onLayout,
       onTouchStart,
+      onStartShouldSetResponder,
       onMoveShouldSetResponder,
       onResponderGrant,
       onResponderMove,
+      onResponderRelease: unlockScroll,
+      onResponderTerminate: unlockScroll,
       onResponderTerminationRequest: () => false,
     },
   };
