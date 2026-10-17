@@ -106,7 +106,7 @@ function validateValue(
   if (customKind === "severity") {
     if (!SEVERITY_VALUES.has(rating)) {
       throw new Error(
-        `Entry ${index} has an invalid severity value for ${kind}: ${rating}`,
+        `Entry ${index} has an invalid severity value: ${kind} = ${rating}`,
       );
     }
     return rating;
@@ -114,7 +114,7 @@ function validateValue(
   if (customKind === "rating") {
     if (rating < 1 || rating > 10) {
       throw new Error(
-        `Entry ${index} has an out-of-range ${kind} rating: ${rating}`,
+        `Entry ${index} has an out-of-range rating: ${kind} = ${rating}`,
       );
     }
     return rating;
@@ -125,7 +125,7 @@ function validateValue(
     // same mapping the v7 migration applied.
     if (rating !== 0 && rating !== 1) {
       throw new Error(
-        `Entry ${index} has an invalid event value for ${kind}: ${rating}`,
+        `Entry ${index} has an invalid event value: ${kind} = ${rating}`,
       );
     }
     return 1;
@@ -144,7 +144,7 @@ function validateValue(
       rating === 0 && (kind === "stress" || kind === "anxiety") ? 1 : rating;
     if (value < metric.min || value > metric.max) {
       throw new Error(
-        `Entry ${index} has an out-of-range ${kind} rating: ${rating}`,
+        `Entry ${index} has an out-of-range rating: ${kind} = ${rating}`,
       );
     }
     return value;
@@ -153,7 +153,7 @@ function validateValue(
   if (!symptom) throw new Error(`Entry ${index} has unknown kind: ${kind}`);
   if (!symptom.valueKind.options.some((o) => o.value === rating)) {
     throw new Error(
-      `Entry ${index} has an invalid value for ${symptom.name}: ${rating}`,
+      `Entry ${index} has an invalid value: ${symptom.name} = ${rating}`,
     );
   }
   return rating;
@@ -209,6 +209,8 @@ function parseCustomItems(parsed: unknown): CustomItemCandidate[] {
 /** `knownCustomKinds` maps entry kinds ("custom:<id>") of already-stored
  * custom items — entries for those import even when the file predates its
  * item or omits the definition. */
+// Error messages put anything from the file (values, kinds, names) after
+// the first ": ". Error reports send only the part before it.
 export function parseExport(
   json: string,
   knownCustomKinds: Map<string, CustomItemKind> = new Map(),

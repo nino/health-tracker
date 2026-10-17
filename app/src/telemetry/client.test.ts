@@ -283,13 +283,15 @@ describe("exceptionList", () => {
     expect(list[0].mechanism.handled).toBe(false);
   });
 
-  test("redacts the message on request", () => {
-    expect(
-      exceptionList(
-        new Error("Entry 3 has an invalid comment: hi"),
-        true,
-        true,
-      )[0].value,
-    ).toBe("[redacted]");
+  test("keeps only the headline on request", () => {
+    const value = (message: string): string =>
+      exceptionList(new Error(message), true, true)[0].value;
+    expect(value("Entry 3 has an invalid value: Headache = 7")).toBe(
+      "Entry # has an invalid value",
+    );
+    expect(value('JSON Parse error: Unexpected identifier "secret"')).toBe(
+      "JSON Parse error",
+    );
+    expect(value("Not a metric-log export")).toBe("Not a metric-log export");
   });
 });

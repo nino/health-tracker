@@ -107,9 +107,9 @@ export function SettingsSheet(props: { onClose: () => void }) {
           : `Imported ${added} entries.`,
       );
     } catch (error) {
-      // Import errors quote the file's contents, so only their type and
-      // stack go out.
-      telemetry.captureError(error, "import", { redactMessage: true });
+      // Import errors quote the file's contents after the first ": ", so
+      // only the text before it goes out.
+      telemetry.captureError(error, "import", { headlineOnly: true });
       setImportResult(`Import failed: ${String(error)}`);
     }
   };

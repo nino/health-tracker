@@ -51,8 +51,10 @@ export type ErrorOptions = {
   handled?: boolean;
   /** The app is about to die: keep the report for the next launch too. */
   fatal?: boolean;
-  /** Drop the message entirely (errors that may quote user content). */
-  redactMessage?: boolean;
+  /** Send only the message's headline, the text before its first ": "
+   * (errors that quote user content after it, like JSON parse errors and
+   * the importer's). */
+  headlineOnly?: boolean;
   extra?: ErrorExtra;
 };
 
@@ -76,11 +78,16 @@ type ExceptionEntry = {
 
 const MAX_CAUSES = 3;
 
+function headline(message: string): string {
+  const end = message.indexOf(": ");
+  return end === -1 ? message : message.slice(0, end);
+}
+
 /** `$exception_list`, outermost error first, following `cause` a few deep. */
 export function exceptionList(
   error: unknown,
   handled: boolean,
-  redactMessage = false,
+  headlineOnly = false,
 ): ExceptionEntry[] {
   const list: ExceptionEntry[] = [];
   let current: unknown = error;
@@ -98,7 +105,9 @@ export function exceptionList(
     const frames = parseStack(current.stack ?? "", current.message);
     list.push({
       type: sanitizeErrorType(current.name),
-      value: redactMessage ? "[redacted]" : sanitizeMessage(current.message),
+      value: sanitizeMessage(
+        headlineOnly ? headline(current.message) : current.message,
+      ),
       mechanism: { handled, synthetic: false, type: "generic" },
       ...(frames.length > 0 && { stacktrace: { type: "raw", frames } }),
     });
@@ -169,7 +178,7 @@ export function createTelemetry(deps: TelemetryDeps): Telemetry {
         if (!options.fatal && !contextAllows(context)) return;
         const handled = options.handled ?? true;
         const payload = body(distinctId, "$exception", {
-          $exception_list: exceptionList(error, handled, options.redactMessage),
+          $exception_list: exceptionList(error, handled, options.headlineOnly),
           $exception_level: options.fatal ? "fatal" : "error",
           context,
           ...options.extra,
