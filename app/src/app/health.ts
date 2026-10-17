@@ -6,8 +6,22 @@ import {
   importBackendHistory,
   mirrorPending,
 } from "../backends";
+import { entryCategory } from "../telemetry/events";
 import { appDb, entryStore } from "./appDb";
 import { entryKeys } from "./queries";
+import { reportError, telemetry } from "./telemetry";
+
+// Mirror failures are the hard part to debug from a bug report, so each one
+// is reported (when the user opted in) with its backend and entry category.
+function reportMirrorFailure(error: unknown, kind: string): void {
+  telemetry.captureError(error, "mirror", {
+    extra: { backend: activeBackend.name, entry_category: entryCategory(kind) },
+  });
+}
+
+function mirror(): Promise<number> {
+  return mirrorPending(entryStore, activeBackend, reportMirrorFailure);
+}
 
 // Startup sync: authorization (status-gated, so it only ever prompts once),
 // the one-time backfill of pre-existing backend history, then write-through
@@ -21,19 +35,20 @@ export async function syncAtStartup(queryClient: QueryClient): Promise<void> {
       entryStore,
       activeBackend,
     );
-    await mirrorPending(entryStore, activeBackend);
+    await mirror();
     if (imported > 0) {
       // entryKeys.all covers every byKind query and lastDates.
       void queryClient.invalidateQueries({ queryKey: entryKeys.all });
     }
   } catch (error) {
     console.warn("health backend sync failed", error);
+    reportError(error, "startup-sync");
   }
 }
 
 /** Foreground retry: drain any entries whose mirror failed earlier. */
 export function syncOnForeground(): void {
-  void mirrorPending(entryStore, activeBackend).catch(() => {});
+  void mirror().catch((error) => reportError(error, "mirror"));
 }
 
 /** The one save path for the UI: local write first (source of truth), then
@@ -48,5 +63,5 @@ export function saveEntry(
   entryStore.add(kind, value, date, new Date(), valueText);
   void queryClient.invalidateQueries({ queryKey: entryKeys.byKind(kind) });
   void queryClient.invalidateQueries({ queryKey: entryKeys.lastDates() });
-  void mirrorPending(entryStore, activeBackend).catch(() => {});
+  void mirror().catch((error) => reportError(error, "mirror"));
 }

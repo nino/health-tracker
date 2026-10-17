@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { listCustomItems } from "../store/customItems";
-import { getEnabledSymptomIds } from "../store/settings";
+import { getEnabledSymptomIds, getErrorReportingId } from "../store/settings";
 import { appDb, entryStore } from "./appDb";
 
 // Query key factories + shared queryOptions (the TkDodo patterns — see
@@ -20,6 +20,7 @@ export const customItemKeys = { all: ["customItems"] as const };
 
 export const settingsKeys = {
   enabledSymptomIds: ["enabledSymptomIds"] as const,
+  errorReporting: ["errorReporting"] as const,
 };
 
 export function entriesByKindOptions(kind: string) {
@@ -47,5 +48,12 @@ export function enabledSymptomIdsOptions() {
   return queryOptions({
     queryKey: settingsKeys.enabledSymptomIds,
     queryFn: () => getEnabledSymptomIds(appDb),
+  });
+}
+
+export function errorReportingOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.errorReporting,
+    queryFn: () => getErrorReportingId(appDb) !== null,
   });
 }

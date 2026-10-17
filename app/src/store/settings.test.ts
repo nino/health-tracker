@@ -3,10 +3,16 @@ import { describe, expect, test } from "bun:test";
 import { DEFAULT_ENABLED_SYMPTOM_IDS } from "../catalog";
 import { migrate } from "./migrations";
 import {
+  discardPendingCrashReport,
   getEnabledSymptomIds,
+  getErrorReportingId,
   getSetting,
+  optInToErrorReporting,
+  optOutOfErrorReporting,
+  savePendingCrashReport,
   setEnabledSymptomIds,
   setSetting,
+  peekPendingCrashReport,
 } from "./settings";
 import { memoryDriver } from "./testDriver";
 
@@ -44,5 +50,33 @@ describe("settings", () => {
     // Explicitly-empty must not fall back to the defaults.
     setEnabledSymptomIds(db, []);
     expect(getEnabledSymptomIds(db)).toEqual([]);
+  });
+
+  test("error reporting is off by default; the id exists only while opted in", () => {
+    const db = freshDb();
+    expect(getErrorReportingId(db)).toBeNull();
+    optInToErrorReporting(db, "id-1");
+    expect(getErrorReportingId(db)).toBe("id-1");
+    // Opting in again keeps the existing id.
+    optInToErrorReporting(db, "id-2");
+    expect(getErrorReportingId(db)).toBe("id-1");
+    optOutOfErrorReporting(db);
+    expect(getErrorReportingId(db)).toBeNull();
+    expect(getSetting(db, "errorReportingId")).toBeNull();
+  });
+
+  test("a pending crash report stays until discarded, and opting out discards it", () => {
+    const db = freshDb();
+    savePendingCrashReport(db, "{}");
+    expect(peekPendingCrashReport(db)).toBe("{}");
+    expect(peekPendingCrashReport(db)).toBe("{}");
+    discardPendingCrashReport(db, "{other}");
+    expect(peekPendingCrashReport(db)).toBe("{}");
+    savePendingCrashReport(db, "{}");
+    discardPendingCrashReport(db, "{}");
+    expect(peekPendingCrashReport(db)).toBeNull();
+    savePendingCrashReport(db, "{}");
+    optOutOfErrorReporting(db);
+    expect(peekPendingCrashReport(db)).toBeNull();
   });
 });

@@ -79,6 +79,19 @@ describe("mirrorPending", () => {
     expect(store.byKind("mood")[0].backendId).toBe("ok-1");
   });
 
+  test("each failed write is reported with its kind", async () => {
+    const { store } = fresh();
+    const failure = new Error("healthd unavailable");
+    const backend = fakeBackend({ write: () => Promise.reject(failure) });
+    store.add("mood", 6, new Date("2026-07-16T09:00:00Z"));
+    const reported: [unknown, string][] = [];
+
+    await mirrorPending(store, backend, (error, kind) =>
+      reported.push([error, kind]),
+    );
+    expect(reported).toEqual([[failure, "mood"]]);
+  });
+
   test("permanently failing entries park after bounded attempts", async () => {
     const { store } = fresh();
     let writes = 0;

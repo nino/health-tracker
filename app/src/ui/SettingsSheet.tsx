@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -11,11 +12,17 @@ import {
   customItemsOptions,
   enabledSymptomIdsOptions,
   entryKeys,
+  errorReportingOptions,
   settingsKeys,
 } from "../app/queries";
+import { reportError, telemetry } from "../app/telemetry";
 import { SYMPTOMS } from "../catalog";
 import { CUSTOM_KIND_LABELS, type CustomItem } from "../store/customItems";
-import { setEnabledSymptomIds } from "../store/settings";
+import {
+  optInToErrorReporting,
+  optOutOfErrorReporting,
+  setEnabledSymptomIds,
+} from "../store/settings";
 import { importEntriesFromJSON } from "../store/swiftImport";
 import { toLocalDateString } from "../lib/dates";
 import { CustomItemSheet } from "./CustomItemSheet";
@@ -31,6 +38,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
   const enabled = useQuery(enabledSymptomIdsOptions());
   const enabledSet = new Set(enabled.data ?? []);
   const customItems = useQuery(customItemsOptions());
+  const errorReporting = useQuery(errorReportingOptions());
 
   const toggle = (id: string, on: boolean) => {
     const next = new Set(enabledSet);
@@ -42,6 +50,17 @@ export function SettingsSheet(props: { onClose: () => void }) {
     setEnabledSymptomIds(appDb, [...next]);
     void queryClient.invalidateQueries({
       queryKey: settingsKeys.enabledSymptomIds,
+    });
+  };
+
+  const toggleErrorReporting = (on: boolean) => {
+    if (on) {
+      optInToErrorReporting(appDb, randomUUID());
+    } else {
+      optOutOfErrorReporting(appDb);
+    }
+    void queryClient.invalidateQueries({
+      queryKey: settingsKeys.errorReporting,
     });
   };
 
@@ -57,6 +76,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
       file.write(entryStore.exportJSON());
       await Sharing.shareAsync(file.uri, { mimeType: "application/json" });
     } catch (error) {
+      reportError(error, "export");
       setImportResult(`Export failed: ${String(error)}`);
     }
   };
@@ -87,6 +107,9 @@ export function SettingsSheet(props: { onClose: () => void }) {
           : `Imported ${added} entries.`,
       );
     } catch (error) {
+      // Import errors quote the file's contents after the first ": ", so
+      // only the text before it goes out.
+      telemetry.captureError(error, "import", { headlineOnly: true });
       setImportResult(`Import failed: ${String(error)}`);
     }
   };
@@ -195,6 +218,27 @@ export function SettingsSheet(props: { onClose: () => void }) {
           </View>
         ))}
       </View>
+      <View
+        style={[
+          styles.list,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
+        <View style={styles.row}>
+          <Text style={[styles.name, { color: theme.text }]}>
+            Send error reports
+          </Text>
+          <Switch
+            value={errorReporting.data ?? false}
+            onValueChange={toggleErrorReporting}
+          />
+        </View>
+      </View>
+      <Text style={[styles.hint, { color: theme.secondaryText }]}>
+        Sends anonymous error reports (scrubbed error messages, app version,
+        device OS) and a count of app launches, so bugs can be fixed. Never your
+        entries, notes, symptoms, mood or any other health data.
+      </Text>
       {editing !== null && (
         <CustomItemSheet
           item={editing === "new" ? null : editing}

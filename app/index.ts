@@ -1,3 +1,7 @@
+// First: installs the (opt-in) error-report handlers before the app's
+// modules are evaluated. Sends nothing unless the user switched it on.
+import "./src/app/errorHandlers";
+
 import { registerRootComponent } from "expo";
 
 import { App } from "./App";
