@@ -19,6 +19,10 @@ export function setSetting(db: SqlDriver, key: string, value: string): void {
   );
 }
 
+export function deleteSetting(db: SqlDriver, key: string): void {
+  db.run(`DELETE FROM settings WHERE key = ?`, [key]);
+}
+
 const ENABLED_KEY = "enabledSymptomIDs";
 
 // Same codec as the Swift app's AppStorage key: comma-joined, sorted.
@@ -31,4 +35,37 @@ export function getEnabledSymptomIds(db: SqlDriver): string[] {
 
 export function setEnabledSymptomIds(db: SqlDriver, ids: string[]): void {
   setSetting(db, ENABLED_KEY, [...ids].sort().join(","));
+}
+
+// Error reporting is opt-in, and the anonymous id is the opt-in: it exists
+// only while reports are switched on, so there is no separate flag that
+// could disagree with it. Opting out deletes the id and any crash report
+// still waiting to be sent.
+const ERROR_REPORTING_ID_KEY = "errorReportingId";
+const PENDING_CRASH_REPORT_KEY = "pendingCrashReport";
+
+export function getErrorReportingId(db: SqlDriver): string | null {
+  return getSetting(db, ERROR_REPORTING_ID_KEY) || null;
+}
+
+export function optInToErrorReporting(db: SqlDriver, newId: string): void {
+  if (getErrorReportingId(db) === null) {
+    setSetting(db, ERROR_REPORTING_ID_KEY, newId);
+  }
+}
+
+export function optOutOfErrorReporting(db: SqlDriver): void {
+  deleteSetting(db, ERROR_REPORTING_ID_KEY);
+  deleteSetting(db, PENDING_CRASH_REPORT_KEY);
+}
+
+export function savePendingCrashReport(db: SqlDriver, body: string): void {
+  setSetting(db, PENDING_CRASH_REPORT_KEY, body);
+}
+
+/** The crash report kept from a previous launch, removed as it is read. */
+export function takePendingCrashReport(db: SqlDriver): string | null {
+  const body = getSetting(db, PENDING_CRASH_REPORT_KEY);
+  if (body !== null) deleteSetting(db, PENDING_CRASH_REPORT_KEY);
+  return body;
 }

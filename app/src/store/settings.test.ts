@@ -4,9 +4,14 @@ import { DEFAULT_ENABLED_SYMPTOM_IDS } from "../catalog";
 import { migrate } from "./migrations";
 import {
   getEnabledSymptomIds,
+  getErrorReportingId,
   getSetting,
+  optInToErrorReporting,
+  optOutOfErrorReporting,
+  savePendingCrashReport,
   setEnabledSymptomIds,
   setSetting,
+  takePendingCrashReport,
 } from "./settings";
 import { memoryDriver } from "./testDriver";
 
@@ -44,5 +49,28 @@ describe("settings", () => {
     // Explicitly-empty must not fall back to the defaults.
     setEnabledSymptomIds(db, []);
     expect(getEnabledSymptomIds(db)).toEqual([]);
+  });
+
+  test("error reporting is off by default; the id exists only while opted in", () => {
+    const db = freshDb();
+    expect(getErrorReportingId(db)).toBeNull();
+    optInToErrorReporting(db, "id-1");
+    expect(getErrorReportingId(db)).toBe("id-1");
+    // Opting in again keeps the existing id.
+    optInToErrorReporting(db, "id-2");
+    expect(getErrorReportingId(db)).toBe("id-1");
+    optOutOfErrorReporting(db);
+    expect(getErrorReportingId(db)).toBeNull();
+    expect(getSetting(db, "errorReportingId")).toBeNull();
+  });
+
+  test("a pending crash report is read once, and opting out discards it", () => {
+    const db = freshDb();
+    savePendingCrashReport(db, "{}");
+    expect(takePendingCrashReport(db)).toBe("{}");
+    expect(takePendingCrashReport(db)).toBeNull();
+    savePendingCrashReport(db, "{}");
+    optOutOfErrorReporting(db);
+    expect(takePendingCrashReport(db)).toBeNull();
   });
 });

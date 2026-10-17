@@ -28,13 +28,17 @@ const inFlight = new WeakMap<EntryStore, Promise<number>>();
 
 /** Write-through mirroring: push every unsynced entry the backend can hold.
  * Failures release the claim and count an attempt; entries park after
- * MAX_MIRROR_ATTEMPTS. Returns how many entries synced in this run. */
+ * MAX_MIRROR_ATTEMPTS. Returns how many entries synced in this run.
+ * `onFailure` hears about each failed write (for error reports). */
 export function mirrorPending(
   store: EntryStore,
   backend: HealthBackend,
+  onFailure?: (error: unknown, kind: string) => void,
 ): Promise<number> {
   const previous = inFlight.get(store) ?? Promise.resolve(0);
-  const run = previous.catch(() => 0).then(() => runMirror(store, backend));
+  const run = previous
+    .catch(() => 0)
+    .then(() => runMirror(store, backend, onFailure));
   inFlight.set(store, run);
   return run;
 }
@@ -42,6 +46,7 @@ export function mirrorPending(
 async function runMirror(
   store: EntryStore,
   backend: HealthBackend,
+  onFailure: ((error: unknown, kind: string) => void) | undefined,
 ): Promise<number> {
   let mirrored = 0;
   for (const entry of store.unsynced(mirrorableKinds(backend))) {
@@ -57,8 +62,9 @@ async function runMirror(
       );
       store.markSynced(entry.id, backend.name, backendId);
       mirrored++;
-    } catch {
+    } catch (error) {
       store.releaseMirrorClaim(entry.id); // counts the attempt
+      onFailure?.(error, entry.kind);
     }
   }
   return mirrored;
