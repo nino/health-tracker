@@ -116,6 +116,7 @@ describe("createTelemetry", () => {
             backend: "healthkit",
             entry_category: "symptom",
             $lib: "health-tracker",
+            app: "health-tracker",
             $process_person_profile: false,
             $geoip_disable: true,
           },
@@ -133,6 +134,7 @@ describe("createTelemetry", () => {
       $os: "iOS",
       $os_version: "26.0",
       $lib: "health-tracker",
+      app: "health-tracker",
       $process_person_profile: false,
       $geoip_disable: true,
     });
