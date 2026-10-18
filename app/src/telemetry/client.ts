@@ -154,6 +154,8 @@ export function createTelemetry(deps: TelemetryDeps): Telemetry {
         ...deps.common,
         ...properties,
         $lib: "health-tracker",
+        // Which app sent it: all of Nino's apps share one PostHog project.
+        app: "health-tracker",
         // Anonymous events only: no person profiles, no IP geolocation.
         $process_person_profile: false,
         $geoip_disable: true,
