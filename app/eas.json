@@ -1,12 +1,18 @@
 {
   "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
   "build": {
-    "development": { "developmentClient": true, "distribution": "internal" },
+    "base": { "ios": { "image": "macos-tahoe-26.6-xcode-27.1" } },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal"
+    },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "android": { "buildType": "apk" }
     },
-    "production": { "autoIncrement": true }
+    "production": { "extends": "base", "autoIncrement": true }
   },
   "submit": { "production": {} }
 }
