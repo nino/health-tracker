@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/HealthTracker.icon",
       "bundleIdentifier": "com.ninoan.healthtracker",
       "appleTeamId": "62SHETTA2W",
       "entitlements": { "com.apple.developer.healthkit": true },
@@ -21,7 +22,7 @@
     "android": {
       "package": "com.ninoan.healthtracker",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F3D193",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
