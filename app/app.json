@@ -35,7 +35,8 @@
       "expo-sqlite",
       "@react-native-community/datetimepicker",
       "expo-sharing",
-      "./plugins/withSceneDelegate"
+      "./plugins/withSceneDelegate",
+      "./plugins/withLaunchBackground"
     ],
     "extra": {
       "eas": { "projectId": "90fef081-d27b-43f6-9e91-6231cdc2df6d" },
