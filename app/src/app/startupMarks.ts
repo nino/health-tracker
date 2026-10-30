@@ -4,7 +4,9 @@
 
 import type { StartupMarks } from "../telemetry/startup";
 
-export type StartupMark = keyof StartupMarks;
+// bundleStart comes only from the bundle prelude (it's left out where that
+// isn't on the performance clock), so it can't be marked.
+export type StartupMark = Exclude<keyof StartupMarks, "bundleStart">;
 
 // Metro's bundle prelude records when the bundle started executing. It uses
 // the same clock as performance.now() only where nativePerformanceNow exists

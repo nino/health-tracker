@@ -74,8 +74,9 @@ export function primeMainScreenQueries(client: QueryClient): void {
   const prime = (fill: () => void) => {
     try {
       fill();
-    } catch {
+    } catch (error) {
       // see above
+      if (__DEV__) console.warn("priming a startup query failed", error);
     }
   };
   // The keys come from the options factories, whose typed keys make each

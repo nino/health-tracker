@@ -129,5 +129,7 @@ export function reportStartupOnFirstLayout(): void {
   if (startupReported || __DEV__) return;
   startupReported = true;
   markStartup("firstLayout");
-  telemetry.capture(startupEvent(startupMarks));
+  // Sent a moment later, so its settings read and request stay out of the
+  // first frames.
+  setTimeout(() => telemetry.capture(startupEvent(startupMarks)), 1000);
 }

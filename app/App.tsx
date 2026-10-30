@@ -1,7 +1,10 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { AppState } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+} from "react-native-safe-area-context";
 
 import { syncAtStartup, syncOnForeground } from "./src/app/health";
 import { queryClient } from "./src/app/queryClient";
@@ -21,7 +24,10 @@ export function App() {
   });
 
   return (
-    <SafeAreaProvider>
+    // Without initialMetrics the provider renders nothing until native
+    // reports the insets, which costs a cold start a blank frame (and a
+    // round trip) before the main screen can mount.
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <QueryClientProvider client={queryClient}>
         <MainScreen />
         <StatusBar style="auto" />

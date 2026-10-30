@@ -20,9 +20,9 @@ export type StartupEvent = {
   modules_ms?: number;
   /** open the database, migrate, read the main screen's data */
   store_ms?: number;
-  /** → the main screen's first layout: surface start, the first render and
-   * its commit (Fabric emits layout events before the native mount, so the
-   * mount and the paint after it are not included) */
+  /** → the main screen's first layout, as seen by the JS handler: surface
+   * start, the first render and its commit, plus whatever else ran on the JS
+   * thread before the layout event was handled. The paint is not included. */
   mount_ms?: number;
   /** bundle start → the main screen's first layout */
   js_total_ms?: number;
