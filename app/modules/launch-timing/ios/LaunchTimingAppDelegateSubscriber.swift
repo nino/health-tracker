@@ -1,34 +1,53 @@
 import ExpoModulesCore
 
-/// Records when the app's own code starts and when React Native's first
-/// content is mounted. All times are Unix epoch milliseconds.
-public class LaunchTimingAppDelegateSubscriber: ExpoAppDelegateSubscriber {
-  // Written once on the main thread during launch, read later from JS.
-  nonisolated(unsafe) static var mainStartMs: Double?
-  nonisolated(unsafe) static var prewarmed = false
-  nonisolated(unsafe) static var contentAppearedMs: Double?
-  nonisolated(unsafe) private static var observer: NSObjectProtocol?
+/// The launch's native milestones, as Unix epoch milliseconds. Written on
+/// the main thread during launch and read from the JS thread, hence the lock.
+final class LaunchTimes: @unchecked Sendable {
+  static let shared = LaunchTimes()
 
+  private let lock = NSLock()
+  private var mainStart: Double?
+  private var prewarmed = false
+  private var contentAppeared: Double?
+
+  func markMainStart(prewarmed: Bool) {
+    lock.lock()
+    defer { lock.unlock() }
+    mainStart = nowMs()
+    self.prewarmed = prewarmed
+  }
+
+  func markContentAppeared() {
+    lock.lock()
+    defer { lock.unlock() }
+    if contentAppeared == nil {
+      contentAppeared = nowMs()
+    }
+  }
+
+  func snapshot() -> (mainStart: Double?, prewarmed: Bool, contentAppeared: Double?) {
+    lock.lock()
+    defer { lock.unlock() }
+    return (mainStart, prewarmed, contentAppeared)
+  }
+}
+
+public class LaunchTimingAppDelegateSubscriber: ExpoAppDelegateSubscriber {
   // Runs during main(), as the AppDelegate starts initializing.
   public func appDelegateWillBeginInitialization() {
-    Self.mainStartMs = nowMs()
     // iOS sets this for a prewarmed launch, where the process started long
     // before the user opened the app; it's removed once launching finishes.
-    Self.prewarmed = ProcessInfo.processInfo.environment["ActivePrewarm"] == "1"
+    let prewarmed = ProcessInfo.processInfo.environment["ActivePrewarm"] == "1"
+    LaunchTimes.shared.markMainStart(prewarmed: prewarmed)
     // React Native posts this (on the main queue) once the root view has
-    // mounted its first content: the next frame shows the app.
-    Self.observer = NotificationCenter.default.addObserver(
+    // mounted its first content: the next frame shows the app. The token is
+    // never removed; the handler is one comparison after the first time.
+    _ = NotificationCenter.default.addObserver(
       forName: NSNotification.Name("RCTContentDidAppearNotification"),
       object: nil,
       queue: nil
     ) { _ in
-      if Self.contentAppearedMs == nil {
-        Self.contentAppearedMs = nowMs()
-      }
-      if let observer = Self.observer {
-        NotificationCenter.default.removeObserver(observer)
-        Self.observer = nil
-      }
+      LaunchTimes.shared.markContentAppeared()
     }
   }
 }

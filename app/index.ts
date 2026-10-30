@@ -12,7 +12,6 @@ import { primeMainScreenQueries } from "./src/app/queries";
 import { queryClient } from "./src/app/queryClient";
 import { markStartup } from "./src/app/startupMarks";
 
-markStartup("modulesLoaded");
 // The main screen's data is in the cache before React renders, so the first
 // frame is the finished grid.
 primeMainScreenQueries(queryClient);

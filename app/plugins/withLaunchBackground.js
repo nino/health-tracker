@@ -10,6 +10,13 @@
 //
 // A cold start then reads as the app's background followed by its content,
 // not a white flash. Android is left alone for now.
+//
+// expo-system-ui's native module would undo the root view half: when it's
+// created (during React Native's startup) with no color configured, it sets
+// the root view controller's view to white in light mode. Its native side is
+// therefore excluded from iOS autolinking (package.json "expo.autolinking");
+// the app doesn't use its JS API, and its config plugin (Info.plist
+// UIUserInterfaceStyle) still runs.
 const { withAppDelegate, withDangerousMod } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");

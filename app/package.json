@@ -49,5 +49,14 @@
   ],
   "patchedDependencies": {
     "expo-sqlite@57.0.4": "patches/expo-sqlite@57.0.4.patch"
+  },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "expo-system-ui"
+        ]
+      }
+    }
   }
 }

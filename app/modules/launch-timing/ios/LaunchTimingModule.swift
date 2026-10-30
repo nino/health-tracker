@@ -9,17 +9,17 @@ public class LaunchTimingModule: Module {
     // the process start time can't be read. contentAppeared is missing until
     // React Native has mounted its first content.
     Function("launch") { () -> [String: Any]? in
-      guard let processStart = processStartMs(),
-        let mainStart = LaunchTimingAppDelegateSubscriber.mainStartMs
+      let times = LaunchTimes.shared.snapshot()
+      guard let processStart = processStartMs(), let mainStart = times.mainStart
       else {
         return nil
       }
       var result: [String: Any] = [
         "processStart": processStart,
         "mainStart": mainStart,
-        "prewarmed": LaunchTimingAppDelegateSubscriber.prewarmed,
+        "prewarmed": times.prewarmed,
       ]
-      if let contentAppeared = LaunchTimingAppDelegateSubscriber.contentAppearedMs {
+      if let contentAppeared = times.contentAppeared {
         result["contentAppeared"] = contentAppeared
       }
       return result
@@ -35,6 +35,7 @@ private func processStartMs() -> Double? {
   guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0 else {
     return nil
   }
-  let start = info.kp_proc.p_starttime
+  // `p_starttime` is a C macro for this union member; Swift can't see macros.
+  let start = info.kp_proc.p_un.__p_starttime
   return Double(start.tv_sec) * 1000 + Double(start.tv_usec) / 1000
 }

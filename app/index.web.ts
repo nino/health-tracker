@@ -9,8 +9,6 @@ import { primeMainScreenQueries } from "./src/app/queries";
 import { queryClient } from "./src/app/queryClient";
 import { markStartup } from "./src/app/startupMarks";
 
-markStartup("modulesLoaded");
-
 // Web is not a shipping target — it exists so PR screenshots can be captured
 // in a headless browser (see CLAUDE.md). expo-sqlite's synchronous web API
 // waits on its wasm worker with a *bounded* spin and throws if the worker

@@ -12,7 +12,7 @@ import { createTelemetry, telemetryConfig } from "../telemetry/client";
 import { type ErrorContext } from "../telemetry/events";
 import { createRateLimiter } from "../telemetry/rateLimit";
 import { LaunchTiming } from "../../modules/launch-timing";
-import { startupEvent } from "../telemetry/startup";
+import { startupEvent, type NativeLaunch } from "../telemetry/startup";
 import { appDb } from "./appDb";
 import { markStartup, startupMarks } from "./startupMarks";
 
@@ -134,15 +134,15 @@ export function reportStartupOnFirstLayout(): void {
   // first frames.
   // By then iOS has also recorded when the first content appeared.
   setTimeout(() => {
+    let launch: NativeLaunch | null = null;
     try {
-      const launch = LaunchTiming?.launch() ?? null;
-      const native = launch && {
-        launch,
-        epochOffset: Date.now() - performance.now(),
-      };
-      telemetry.capture(startupEvent(startupMarks, native ?? undefined));
+      launch = LaunchTiming?.launch() ?? null;
     } catch {
-      // Telemetry must never become the app's problem.
+      // without the native side, the JS phases still go out
     }
+    const native = launch
+      ? { launch, epochOffset: Date.now() - performance.now() }
+      : undefined;
+    telemetry.capture(startupEvent(startupMarks, native));
   }, 1000);
 }

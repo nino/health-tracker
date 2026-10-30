@@ -15,14 +15,12 @@ config.server.enhanceMiddleware = (middleware) => (req, res, next) => {
   return middleware(req, res, next);
 };
 
-module.exports = config;
-
 // Inline requires: a module is evaluated on first use instead of at bundle
 // start, so code only the sheets need (charts and react-native-svg, the date
 // picker, import/export) no longer runs during a cold start. Expo turns this
 // off by default because it ignores import side effects; this app keeps every
 // import whose side effect matters a bare `import "..."`, which stays in
-// place (see index.ts).
+// place (see src/app/startupEntry.ts).
 const getTransformOptions = config.transformer.getTransformOptions;
 config.transformer.getTransformOptions = async (...args) => {
   const options = await getTransformOptions(...args);
@@ -31,3 +29,5 @@ config.transformer.getTransformOptions = async (...args) => {
     transform: { ...options.transform, inlineRequires: true },
   };
 };
+
+module.exports = config;
