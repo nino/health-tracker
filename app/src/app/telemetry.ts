@@ -11,7 +11,9 @@ import {
 import { createTelemetry, telemetryConfig } from "../telemetry/client";
 import { type ErrorContext } from "../telemetry/events";
 import { createRateLimiter } from "../telemetry/rateLimit";
+import { startupEvent } from "../telemetry/startup";
 import { appDb } from "./appDb";
+import { markStartup, startupMarks } from "./startupMarks";
 
 // Opt-in error reports (Settings → "Send error reports") to PostHog. The
 // key and host are app config (`expo.extra.posthog` in app.json; a phc_ key
@@ -115,4 +117,19 @@ export function installErrorHandlers(): void {
 
 export function reportError(error: unknown, context: ErrorContext): void {
   telemetry.captureError(error, context);
+}
+
+let startupReported = false;
+
+/** Called on the main screen's first layout: marks it and sends the launch's
+ * timing (`app_startup`, opt-in like everything else). Once per JS runtime,
+ * i.e. per cold start, and never from development builds, whose launches
+ * (an unoptimized bundle from Metro) would only skew the numbers. */
+export function reportStartupOnFirstLayout(): void {
+  if (startupReported || __DEV__) return;
+  startupReported = true;
+  markStartup("firstLayout");
+  // Sent a moment later, so its settings read and request stay out of the
+  // first frames.
+  setTimeout(() => telemetry.capture(startupEvent(startupMarks)), 1000);
 }
