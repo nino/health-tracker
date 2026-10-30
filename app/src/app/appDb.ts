@@ -7,8 +7,9 @@ import { openAppDatabase } from "../store/expoSqliteDriver";
 // The one database connection and store instance the UI works with — shared
 // module-wide, but opened lazily on first use: on web (the PR-screenshot
 // harness) a synchronous open at module scope would race expo-sqlite's wasm
-// worker startup (see index.web.ts). First use is always post-mount, and the
-// store still migrates before anything else touches the database.
+// worker startup (see index.web.ts). First use is the entry file priming the
+// main screen's queries (on web, only once the worker is up), and the store
+// still migrates before anything else touches the database.
 
 let driver: SqlDriver | undefined;
 function db(): SqlDriver {

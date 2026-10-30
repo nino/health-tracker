@@ -236,8 +236,9 @@ export function SettingsSheet(props: { onClose: () => void }) {
       </View>
       <Text style={[styles.hint, { color: theme.secondaryText }]}>
         Sends anonymous error reports (scrubbed error messages, app version,
-        device OS) and a count of app launches, so bugs can be fixed. Never your
-        entries, notes, symptoms, mood or any other health data.
+        device OS), a count of app launches and how long each launch took, so
+        bugs and slow starts can be fixed. Never your entries, notes, symptoms,
+        mood or any other health data.
       </Text>
       {editing !== null && (
         <CustomItemSheet

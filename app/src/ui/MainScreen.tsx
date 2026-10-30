@@ -9,6 +9,7 @@ import {
   enabledSymptomIdsOptions,
   lastDatesOptions,
 } from "../app/queries";
+import { reportStartupOnFirstLayout } from "../app/telemetry";
 import { METRICS, SYMPTOMS, type Metric, type Symptom } from "../catalog";
 import { customItemToMetric, customItemToSymptom } from "../catalog/custom";
 import { NOTE } from "../catalog/note";
@@ -138,6 +139,7 @@ export function MainScreen() {
         styles.screen,
         { backgroundColor: theme.background, paddingTop: insets.top },
       ]}
+      onLayout={reportStartupOnFirstLayout}
     >
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Log Symptom</Text>
