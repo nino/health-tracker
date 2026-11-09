@@ -2,6 +2,7 @@ import { exportSchema } from "../catalog/exportSchema";
 import { parseISOString, toLocalISOString } from "../lib/dates";
 import { type CustomItemKind } from "./customItems";
 import { type SqlDriver } from "./driver";
+import { exportLocations } from "./locations";
 import { migrate } from "./migrations";
 
 // `kind` is either a MetricId ("mood") or a symptom id
@@ -254,7 +255,8 @@ export class EntryStore {
   /** JSON export — a superset of the Swift app's metric-log.json format
    * (kind/rating/date/loggedAt), so existing tooling keeps working.
    * customItems (archived ones included — their entries are in the file)
-   * makes "custom:<id>" entries restorable on a fresh device. */
+   * makes "custom:<id>" entries restorable on a fresh device; locations
+   * (opt-in, see locations.ts) ride along the same way. */
   exportJSON(now: Date = new Date()): string {
     const entries = this.db
       .all<EntryRow>(`SELECT * FROM entries ORDER BY date_unix_ms`)
@@ -285,6 +287,7 @@ export class EntryStore {
         createdAt: row.created_at,
         archivedAt: row.archived_at,
       }));
+    const locations = exportLocations(this.db);
     // The schema sits above the data so someone opening the file reads
     // how to interpret the numbers before the numbers. Import ignores it.
     return JSON.stringify(
@@ -300,6 +303,8 @@ export class EntryStore {
         ),
         entries,
         customItems,
+        // Only present once location recording has produced something.
+        ...(locations.length === 0 ? {} : { locations }),
       },
       null,
       2,

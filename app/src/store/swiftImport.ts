@@ -4,9 +4,11 @@ import { toLocalISOString } from "../lib/dates";
 import { CUSTOM_KIND_PREFIX, type CustomItemKind } from "./customItems";
 import { type SqlDriver } from "./driver";
 import { type EntryStore } from "./entryStore";
+import { importLocations, type StoredLocation } from "./locations";
 
 // Parses exported JSON — the Swift app's metric-log.json or this app's own
-// export ({ exportedAt, entries, customItems? } or a bare entry array) —
+// export ({ exportedAt, entries, customItems?, locations? } or a bare entry
+// array) —
 // into candidates for EntryStore.import. Malformed entries abort loudly
 // (never a silent partial import); entries whose kind this app doesn't know
 // are skipped and counted, so exports from newer versions degrade
@@ -36,6 +38,7 @@ export interface CustomItemCandidate {
 export interface ParsedExport {
   entries: ImportCandidate[];
   customItems: CustomItemCandidate[];
+  locations: StoredLocation[];
   skippedUnknownKinds: number;
 }
 
@@ -45,21 +48,28 @@ const ISO_RE =
 // Strict on purpose: `new Date()` alone accepts garbage ("2024", "0", month
 // rollovers like Feb 30) and dates whose year breaks ISO round-tripping,
 // which would poison every later read of the store.
-function parseStrictDate(value: unknown, index: number, field: string): Date {
+function parseStrictDate(
+  value: unknown,
+  index: number,
+  field: string,
+  what = "Entry",
+): Date {
   if (typeof value !== "string") {
-    throw new Error(`Entry ${index} is missing ${field}`);
+    throw new Error(`${what} ${index} is missing ${field}`);
   }
   const match = ISO_RE.exec(value);
   if (!match) {
-    throw new Error(`Entry ${index} has a malformed ${field}: ${value}`);
+    throw new Error(`${what} ${index} has a malformed ${field}: ${value}`);
   }
   const year = Number(match[1]);
   if (year < 1970 || year > 2100) {
-    throw new Error(`Entry ${index} has an implausible ${field} year: ${year}`);
+    throw new Error(
+      `${what} ${index} has an implausible ${field} year: ${year}`,
+    );
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    throw new Error(`Entry ${index} has an invalid ${field}: ${value}`);
+    throw new Error(`${what} ${index} has an invalid ${field}: ${value}`);
   }
   // Reject silently-rolled dates (Feb 30 → Mar 2): shift into the string's
   // own offset and compare every component against what was written.
@@ -78,7 +88,7 @@ function parseStrictDate(value: unknown, index: number, field: string): Date {
     shifted.getUTCMinutes() === Number(match[5]) &&
     shifted.getUTCSeconds() === Number(match[6]);
   if (!matches) {
-    throw new Error(`Entry ${index} has a nonexistent ${field}: ${value}`);
+    throw new Error(`${what} ${index} has a nonexistent ${field}: ${value}`);
   }
   return date;
 }
@@ -206,6 +216,60 @@ function parseCustomItems(parsed: unknown): CustomItemCandidate[] {
   });
 }
 
+function requireNumber(
+  value: unknown,
+  index: number,
+  field: string,
+  min: number,
+  max: number,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < min ||
+    value > max
+  ) {
+    throw new Error(`Location ${index} has a missing or implausible ${field}`);
+  }
+  return value;
+}
+
+function parseLocations(parsed: unknown): StoredLocation[] {
+  if (parsed === null || typeof parsed !== "object") return [];
+  const raw = (parsed as { locations?: unknown }).locations;
+  if (raw === undefined) return []; // no location recording, or an older export
+  if (!Array.isArray(raw)) {
+    throw new Error("locations is not an array");
+  }
+  return raw.map((item, index) => {
+    if (item === null || typeof item !== "object") {
+      throw new Error(`Location ${index} is not an object`);
+    }
+    const record = item as Record<string, unknown>;
+    const kind = record.kind;
+    if (kind !== "visit" && kind !== "move") {
+      throw new Error(`Location ${index} has an unknown kind: ${String(kind)}`);
+    }
+    if (typeof record.id !== "string" || record.id === "") {
+      throw new Error(`Location ${index} has a missing or empty id`);
+    }
+    const optionalDate = (field: string) =>
+      kind === "move" || record[field] === undefined || record[field] === null
+        ? null
+        : parseStrictDate(record[field], index, field, "Location");
+    return {
+      id: record.id,
+      kind,
+      latitude: requireNumber(record.latitude, index, "latitude", -90, 90),
+      longitude: requireNumber(record.longitude, index, "longitude", -180, 180),
+      accuracy: requireNumber(record.accuracy, index, "accuracy", 0, Infinity),
+      date: parseStrictDate(record.date, index, "date", "Location"),
+      arrival: optionalDate("arrival"),
+      departure: optionalDate("departure"),
+    };
+  });
+}
+
 /** `knownCustomKinds` maps entry kinds ("custom:<id>") of already-stored
  * custom items — entries for those import even when the file predates its
  * item or omits the definition. */
@@ -276,12 +340,17 @@ export function parseExport(
     }
     entries.push(candidate);
   });
-  return { entries, customItems, skippedUnknownKinds };
+  return {
+    entries,
+    customItems,
+    locations: parseLocations(parsed),
+    skippedUnknownKinds,
+  };
 }
 
 /** The one import path for user-provided JSON. Restores custom-item
  * definitions before entries (INSERT OR IGNORE — a definition already on
- * this device wins over the file's copy). Mood entries get HealthKit
+ * this device wins over the file's copy), and recorded locations after them. Mood entries get HealthKit
  * provenance: the Swift app dual-wrote every mood to Apple Health, so
  * re-mirroring them would duplicate samples. (If the file came from a device
  * where mood never reached HealthKit, those entries are skipped rather than
@@ -291,7 +360,7 @@ export function importEntriesFromJSON(
   store: EntryStore,
   db: SqlDriver,
   json: string,
-): { added: number; skippedUnknownKinds: number } {
+): { added: number; addedLocations: number; skippedUnknownKinds: number } {
   const known = new Map<string, CustomItemKind>(
     db
       .all<{ id: string; kind: string }>(`SELECT id, kind FROM custom_items`)
@@ -324,5 +393,9 @@ export function importEntriesFromJSON(
         : entry,
     ),
   );
-  return { added, skippedUnknownKinds: parsed.skippedUnknownKinds };
+  return {
+    added,
+    addedLocations: importLocations(db, parsed.locations),
+    skippedUnknownKinds: parsed.skippedUnknownKinds,
+  };
 }

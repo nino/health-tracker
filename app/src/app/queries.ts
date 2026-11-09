@@ -3,6 +3,7 @@ import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { listCustomItems } from "../store/customItems";
 import { getEnabledSymptomIds, getErrorReportingId } from "../store/settings";
 import { appDb, entryStore } from "./appDb";
+import { readLocationTracking } from "./location";
 
 // Query key factories + shared queryOptions (the TkDodo patterns — see
 // .claude/skills/react-query-tkdodo). Keys go generic → specific so
@@ -21,6 +22,7 @@ export const customItemKeys = { all: ["customItems"] as const };
 export const settingsKeys = {
   enabledSymptomIds: ["enabledSymptomIds"] as const,
   errorReporting: ["errorReporting"] as const,
+  locationTracking: ["locationTracking"] as const,
 };
 
 // The reads behind the main screen's queries, shared with
@@ -61,6 +63,13 @@ export function errorReportingOptions() {
   return queryOptions({
     queryKey: settingsKeys.errorReporting,
     queryFn: () => getErrorReportingId(appDb) !== null,
+  });
+}
+
+export function locationTrackingOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.locationTracking,
+    queryFn: readLocationTracking,
   });
 }
 

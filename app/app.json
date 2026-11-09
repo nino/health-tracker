@@ -16,7 +16,9 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSHealthShareUsageDescription": "Reads your existing symptom and State of Mind history so past entries appear in the app.",
-        "NSHealthUpdateUsageDescription": "Saves the symptoms and mood you log to Apple Health."
+        "NSHealthUpdateUsageDescription": "Saves the symptoms and mood you log to Apple Health.",
+        "NSLocationWhenInUseUsageDescription": "If you switch on location recording, the places you stay at are saved on this device alongside your entries.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "If you switch on location recording, the places you stay at are saved on this device alongside your entries, including while the app is closed."
       }
     },
     "android": {

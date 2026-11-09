@@ -67,6 +67,26 @@ const MIGRATIONS: string[][] = [
      WHERE kind IN (SELECT 'custom:' || id FROM custom_items WHERE kind = 'text')`,
     `UPDATE custom_items SET kind = 'event' WHERE kind = 'text'`,
   ],
+  // v8: opt-in background location (issue #6) — places stayed at ("visit")
+  // and larger moves between them ("move"). date is a visit's arrival (or,
+  // when iOS doesn't know it, its departure or the time it was reported) and
+  // a move's fix time. A visit is reported twice, on arrival and again on
+  // departure; arrival_unix_ms is what joins the two into one row.
+  [
+    `CREATE TABLE locations (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      accuracy REAL NOT NULL,
+      date TEXT NOT NULL,
+      date_unix_ms INTEGER NOT NULL,
+      arrival_unix_ms INTEGER,
+      departure_unix_ms INTEGER
+    )`,
+    `CREATE INDEX idx_locations_date ON locations(date_unix_ms)`,
+    `CREATE INDEX idx_locations_arrival ON locations(arrival_unix_ms)`,
+  ],
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
