@@ -22,7 +22,8 @@ export type ErrorContext =
   | "startup-sync"
   | "mirror"
   | "import"
-  | "export";
+  | "export"
+  | "location";
 
 /** Extra, non-identifying detail an error report may carry. */
 export type ErrorExtra = { backend?: string; entry_category?: EntryCategory };

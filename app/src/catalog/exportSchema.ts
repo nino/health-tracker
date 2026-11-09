@@ -143,7 +143,8 @@ export function exportSchema(customItems: SchemaCustomItem[]): Json {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     title: "Health Tracker export",
     description:
-      "Every logged entry plus the definitions of user-created items. " +
+      "Every logged entry plus the definitions of user-created items and, " +
+      "if switched on, recorded locations. " +
       "What `rating` means depends on `kind`; see the per-kind rules under " +
       "entries.items.allOf. Timestamps are ISO 8601 with the local UTC offset.",
     type: "object",
@@ -217,6 +218,56 @@ export function exportSchema(customItems: SchemaCustomItem[]): Json {
             },
             createdAt: { type: "string", format: "date-time" },
             archivedAt: { type: ["string", "null"], format: "date-time" },
+          },
+        },
+      },
+      locations: {
+        type: "array",
+        description:
+          "Only if location recording was switched on. Oldest first, by " +
+          "`date`. Coordinates are WGS 84 degrees.",
+        items: {
+          type: "object",
+          required: ["id", "kind", "latitude", "longitude", "accuracy", "date"],
+          properties: {
+            id: { type: "string" },
+            kind: {
+              oneOf: [
+                {
+                  const: "visit",
+                  title: "A place the phone stayed at; see arrival/departure",
+                },
+                {
+                  const: "move",
+                  title:
+                    "A position after a significant move (roughly 500 m or more)",
+                },
+              ],
+            },
+            latitude: { type: "number", minimum: -90, maximum: 90 },
+            longitude: { type: "number", minimum: -180, maximum: 180 },
+            accuracy: {
+              type: "number",
+              minimum: 0,
+              description: "Horizontal accuracy radius in metres.",
+            },
+            date: {
+              type: "string",
+              format: "date-time",
+              description:
+                "A move's time; a visit's arrival, or its departure when " +
+                "the arrival is unknown.",
+            },
+            arrival: {
+              type: "string",
+              format: "date-time",
+              description: "Visits only; absent when unknown.",
+            },
+            departure: {
+              type: "string",
+              format: "date-time",
+              description: "Visits only; absent when unknown or still there.",
+            },
           },
         },
       },

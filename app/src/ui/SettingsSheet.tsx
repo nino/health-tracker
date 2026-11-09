@@ -7,12 +7,14 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 
 import { appDb, entryStore } from "../app/appDb";
+import { setLocationTracking } from "../app/location";
 import {
   customItemKeys,
   customItemsOptions,
   enabledSymptomIdsOptions,
   entryKeys,
   errorReportingOptions,
+  locationTrackingOptions,
   settingsKeys,
 } from "../app/queries";
 import { reportError, telemetry } from "../app/telemetry";
@@ -39,6 +41,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
   const enabledSet = new Set(enabled.data ?? []);
   const customItems = useQuery(customItemsOptions());
   const errorReporting = useQuery(errorReportingOptions());
+  const locationTracking = useQuery(locationTrackingOptions());
 
   const toggle = (id: string, on: boolean) => {
     const next = new Set(enabledSet);
@@ -61,6 +64,18 @@ export function SettingsSheet(props: { onClose: () => void }) {
     }
     void queryClient.invalidateQueries({
       queryKey: settingsKeys.errorReporting,
+    });
+  };
+
+  const toggleLocationTracking = async (on: boolean) => {
+    try {
+      await setLocationTracking(on);
+    } catch (error) {
+      reportError(error, "location");
+    }
+    // Refetched either way: if access was refused the switch falls back.
+    void queryClient.invalidateQueries({
+      queryKey: settingsKeys.locationTracking,
     });
   };
 
@@ -93,18 +108,19 @@ export function SettingsSheet(props: { onClose: () => void }) {
       const json = asset.file
         ? await asset.file.text()
         : await new File(asset.uri).text();
-      const { added, skippedUnknownKinds } = importEntriesFromJSON(
-        entryStore,
-        appDb,
-        json,
-      );
+      const { added, addedLocations, skippedUnknownKinds } =
+        importEntriesFromJSON(entryStore, appDb, json);
       // entryKeys.all covers every byKind query and lastDates.
       void queryClient.invalidateQueries({ queryKey: entryKeys.all });
       void queryClient.invalidateQueries({ queryKey: customItemKeys.all });
+      const what =
+        addedLocations > 0
+          ? `${added} entries and ${addedLocations} locations`
+          : `${added} entries`;
       setImportResult(
         skippedUnknownKinds > 0
-          ? `Imported ${added} entries (${skippedUnknownKinds} of an unknown type skipped).`
-          : `Imported ${added} entries.`,
+          ? `Imported ${what} (${skippedUnknownKinds} of an unknown type skipped).`
+          : `Imported ${what}.`,
       );
     } catch (error) {
       // Import errors quote the file's contents after the first ": ", so
@@ -240,6 +256,36 @@ export function SettingsSheet(props: { onClose: () => void }) {
         bugs and slow starts can be fixed. Never your entries, notes, symptoms,
         mood or any other health data.
       </Text>
+      {locationTracking.data && (
+        <>
+          <View
+            style={[
+              styles.list,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.row}>
+              <Text style={[styles.name, { color: theme.text }]}>
+                Record location
+              </Text>
+              <Switch
+                value={locationTracking.data.enabled}
+                onValueChange={(on) => void toggleLocationTracking(on)}
+              />
+            </View>
+          </View>
+          <Text style={[styles.hint, { color: theme.secondaryText }]}>
+            Records the places you stay at and larger moves between them, in the
+            background, so they can be set against your entries later. Kept on
+            this device and included in your JSON export; never sent anywhere.
+            {locationTracking.data.blocked
+              ? " Location access is off for this app in iOS Settings, so nothing can be recorded."
+              : locationTracking.data.foregroundOnly
+                ? " Location access is set to While Using; choose Always in iOS Settings to record in the background."
+                : ""}
+          </Text>
+        </>
+      )}
       {editing !== null && (
         <CustomItemSheet
           item={editing === "new" ? null : editing}

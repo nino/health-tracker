@@ -46,10 +46,11 @@ describe("migrations", () => {
     insert("a0", "anxiety", 0);
     // Severity/presence "Present" is raw value 0 — v4 must not touch it.
     insert("h0", "HKCategoryTypeIdentifierHeadache", 0);
-    // Rewind to v3: later migrations (v5's CREATE TABLE, v6's ADD COLUMN)
+    // Rewind to v3: later migrations (v5's and v8's CREATE TABLE, v6's ADD COLUMN)
     // must be undone first or the replay would collide with their previous
     // run.
     db.run("DROP TABLE custom_items");
+    db.run("DROP TABLE locations");
     db.run("ALTER TABLE entries DROP COLUMN value_text");
     setUserVersion(db, 3);
 
@@ -160,6 +161,8 @@ describe("EntryStore", () => {
     // Quick notes keep value 0; so does a numeric 0.
     entry("n", "note", 0, "hit my head");
     entry("w", "custom:weight", 0);
+    // v8's CREATE TABLE has to be undone, or the replay collides with it.
+    db.run("DROP TABLE locations");
     setUserVersion(db, 6);
 
     migrate(db);

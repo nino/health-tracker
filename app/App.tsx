@@ -7,6 +7,7 @@ import {
 } from "react-native-safe-area-context";
 
 import { syncAtStartup, syncOnForeground } from "./src/app/health";
+import { drainLocations } from "./src/app/location";
 import { queryClient } from "./src/app/queryClient";
 import { telemetry } from "./src/app/telemetry";
 import { MainScreen } from "./src/ui/MainScreen";
@@ -17,8 +18,12 @@ export function App() {
     telemetry.flushPending();
     telemetry.capture({ name: "app_opened" });
     void syncAtStartup(queryClient);
+    void drainLocations();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") syncOnForeground();
+      if (state === "active") {
+        syncOnForeground();
+        void drainLocations();
+      }
     });
     return () => subscription.remove();
   });
